@@ -36,5 +36,8 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Build and validate DocC documentation
+        run: python3 Scripts/build-documentation.py
+
       - name: Build XCUITest helpers for iOS
         run: xcodebuild -scheme TestCommonsXCUI -destination 'generic/platform=iOS Simulator' build
