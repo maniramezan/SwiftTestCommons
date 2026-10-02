@@ -120,7 +120,7 @@ flag when revealing the child is required for the next interaction.
 ## Installation
 
 ```swift
-.package(url: "https://github.com/maniramezan/SwiftTestCommons", from: "0.2.0")
+.package(url: "https://github.com/maniramezan/SwiftTestCommons", from: "0.1.0")
 ```
 
 Tags are bare SemVer (`0.1.0`), never `v0.1.0`.
@@ -223,5 +223,5 @@ swift test --package-path Integrations/ConsumerTests
 ```
 
 The core builds and tests on Linux. TestCommonsXCUI and TestCommonsUI expose Apple-only
-APIs and remain separate from the shipping-safe core. Consumers use the SwiftTestCommons `0.2.0` release. Local paths are used only by the
+APIs and remain separate from the shipping-safe core. Consumers use the SwiftTestCommons `0.1.0` release. Local paths are used only by the
 in-repository consumer integration harness.
