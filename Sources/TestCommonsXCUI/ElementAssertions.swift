@@ -1,4 +1,4 @@
-#if canImport(XCTest)
+#if canImport(XCTest) && (os(macOS) || os(iOS))
     import XCTest
 
     /// Waits for an element to exist, reporting failures at the caller.
@@ -10,6 +10,7 @@
     /// - Parameters:
     ///   - element: The element expected to appear in the accessibility hierarchy.
     ///   - timeout: The maximum wait duration, in seconds. Pass a nonnegative value.
+    ///   - name: Optional logical control name included in failure diagnostics.
     ///   - file: The calling test's source file. Leave the default to preserve its location.
     ///   - line: The calling test's source line. Leave the default to preserve its location.
     /// - Returns: `true` when the element exists before the timeout; otherwise `false`.
@@ -17,11 +18,11 @@
     @discardableResult
     public func waitForExistence(
         _ element: XCUIElement, timeout: TimeInterval,
-        file: StaticString = #filePath, line: UInt = #line
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
         let succeeded = element.waitForExistence(timeout: timeout)
         XCTAssertTrue(
-            succeeded, "Element did not exist before the timeout.\n\(element.debugDescription)",
+            succeeded, "\(name) did not exist before the timeout.\n\(element.debugDescription)",
             file: file, line: line)
         return succeeded
     }
@@ -35,6 +36,7 @@
     /// - Parameters:
     ///   - element: The control expected to appear and become enabled.
     ///   - timeout: The maximum combined wait duration, in seconds. Pass a nonnegative value.
+    ///   - name: Optional logical control name included in failure diagnostics.
     ///   - file: The calling test's source file. Leave the default to preserve its location.
     ///   - line: The calling test's source line. Leave the default to preserve its location.
     /// - Returns: `true` when existence and enabled state match; otherwise `false`.
@@ -42,11 +44,11 @@
     @discardableResult
     public func waitForEnabled(
         _ element: XCUIElement, timeout: TimeInterval,
-        file: StaticString = #filePath, line: UInt = #line
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
         waitForElement(
             element, condition: .enabled, timeout: timeout,
-            file: file, line: line)
+            name: name, file: file, line: line)
     }
 
     /// Waits for an existing element to expose exactly the expected string value.
@@ -59,6 +61,7 @@
     ///   - value: The exact string expected in the element's accessibility value.
     ///   - element: The element whose value is observed.
     ///   - timeout: The maximum combined wait duration, in seconds. Pass a nonnegative value.
+    ///   - name: Optional logical control name included in failure diagnostics.
     ///   - file: The calling test's source file. Leave the default to preserve its location.
     ///   - line: The calling test's source line. Leave the default to preserve its location.
     /// - Returns: `true` when the element exists with the expected value; otherwise `false`.
@@ -66,11 +69,11 @@
     @discardableResult
     public func waitForValue(
         _ value: String, on element: XCUIElement, timeout: TimeInterval,
-        file: StaticString = #filePath, line: UInt = #line
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
         waitForElement(
             element, condition: .value(value), timeout: timeout,
-            file: file, line: line)
+            name: name, file: file, line: line)
     }
 
     /// Waits for an existing element's string value to contain the expected text.
@@ -83,6 +86,7 @@
     ///   - value: The literal substring expected in the accessibility value.
     ///   - element: The element whose value is observed.
     ///   - timeout: The maximum combined wait duration, in seconds. Pass a nonnegative value.
+    ///   - name: Optional logical control name included in failure diagnostics.
     ///   - file: The calling test's source file. Leave the default to preserve its location.
     ///   - line: The calling test's source line. Leave the default to preserve its location.
     /// - Returns: `true` when the element exists with a matching value; otherwise `false`.
@@ -90,35 +94,120 @@
     @discardableResult
     public func waitForValueContaining(
         _ value: String, on element: XCUIElement, timeout: TimeInterval,
-        file: StaticString = #filePath, line: UInt = #line
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
         waitForElement(
             element, condition: .valueContaining(value), timeout: timeout,
-            file: file, line: line)
+            name: name, file: file, line: line)
+    }
+
+    /// Waits for an element to exist and become hittable, reporting failure at the caller.
+    /// - Parameters:
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForHittability(
+        _ element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(element, condition: .hittable, timeout: timeout, name: name, file: file, line: line)
+    }
+
+    /// Waits for an element to disappear, reporting failure at the caller.
+    /// - Parameters:
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForAbsence(
+        _ element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(element, condition: .absent, timeout: timeout, name: name, file: file, line: line)
+    }
+
+    /// Waits for an element to expose exactly the expected label, reporting failure at the caller.
+    /// - Parameters:
+    ///   - value: The case-sensitive label text to match.
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForLabel(
+        _ value: String, on element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(element, condition: .label(value), timeout: timeout, name: name, file: file, line: line)
+    }
+
+    /// Waits for an element to expose a label containing the expected text, reporting failure at the caller.
+    /// - Parameters:
+    ///   - value: The case-sensitive label text to match.
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForLabelContaining(
+        _ value: String, on element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(
+            element, condition: .labelContaining(value), timeout: timeout, name: name, file: file, line: line)
     }
 
     @MainActor
     private func waitForElement(
         _ element: XCUIElement, condition: ElementCondition, timeout: TimeInterval,
-        file: StaticString, line: UInt
+        name: String, file: StaticString, line: UInt
     ) -> Bool {
-        let expectation = XCTNSPredicateExpectation(predicate: condition.predicate, object: element)
+        let predicate = condition.predicate
+        if predicate.evaluate(with: element) { return true }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
         let succeeded = result == .completed
         XCTAssertTrue(
             succeeded,
-            "Element did not \(condition.description) before the timeout (\(result)).\n\(element.debugDescription)",
+            "\(name) did not \(condition.description) before the timeout (\(result)).\n\(element.debugDescription)",
             file: file, line: line)
         return succeeded
     }
 
     enum ElementCondition {
         case enabled
+        case hittable
+        case absent
+        case label(String)
+        case labelContaining(String)
         case value(String)
         case valueContaining(String)
 
         var predicate: NSPredicate {
             switch self {
+            case .hittable:
+                NSPredicate(format: "exists == true AND isHittable == true")
+            case .absent:
+                NSPredicate(format: "exists == false")
+            case .label(let value):
+                NSPredicate(format: "exists == true AND label == %@", value)
+            case .labelContaining(let value):
+                NSPredicate(format: "exists == true AND label CONTAINS %@", value)
             case .enabled:
                 NSPredicate(format: "exists == true AND isEnabled == true")
             case .value(let value):
@@ -131,6 +220,10 @@
         var description: String {
             switch self {
             case .enabled: "exist and become enabled"
+            case .hittable: "exist and become hittable"
+            case .absent: "disappear"
+            case .label(let value): "exist with label equal to '\(value)'"
+            case .labelContaining(let value): "exist with label containing '\(value)'"
             case .value(let value): "exist with value equal to '\(value)'"
             case .valueContaining(let value): "exist with value containing '\(value)'"
             }

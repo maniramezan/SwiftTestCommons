@@ -11,6 +11,7 @@ import Foundation
 /// - ``init()``
 /// - ``url``
 /// - ``remove()``
+/// - ``write(_:named:)``
 public struct TemporaryDirectory: Sendable {
     /// The unique directory URL, created beneath the system temporary directory.
     public let url: URL
@@ -24,6 +25,23 @@ public struct TemporaryDirectory: Sendable {
         url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+    }
+
+    /// Writes a fixture file beneath this scratch directory, creating parent folders.
+    /// - Parameters:
+    ///   - data: The bytes to write atomically.
+    ///   - name: A relative filename; escaping the scratch directory is rejected.
+    /// - Returns: The new file URL.
+    /// - Throws: A file-system error or an invalid relative-path error.
+    public func write(_ data: Data, named name: String) throws -> URL {
+        let base = url.standardizedFileURL.resolvingSymlinksInPath()
+        let file = base.appendingPathComponent(name).standardizedFileURL.resolvingSymlinksInPath()
+        guard !name.isEmpty, !name.hasPrefix("/"), file.path.hasPrefix(base.path + "/") else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+        return file
     }
 
     /// Removes the directory and its contents. Already-removed directories are harmless.

@@ -11,9 +11,12 @@ let package = Package(
         .library(name: "TestCommons", targets: ["TestCommons"]),
         // XCUITest helpers. Link into UI test targets only.
         .library(name: "TestCommonsXCUI", targets: ["TestCommonsXCUI"]),
+        .library(name: "TestCommonsUI", targets: ["TestCommonsUI"]),
     ],
     targets: [
         .target(name: "TestCommons"),
+        .target(name: "TestCommonsUI"),
+        .testTarget(name: "TestCommonsUITests", dependencies: ["TestCommonsUI"]),
         .target(name: "TestCommonsXCUI", dependencies: ["TestCommons"]),
         .testTarget(name: "TestCommonsTests", dependencies: ["TestCommons"]),
         .testTarget(name: "TestCommonsXCUITests", dependencies: ["TestCommonsXCUI"]),

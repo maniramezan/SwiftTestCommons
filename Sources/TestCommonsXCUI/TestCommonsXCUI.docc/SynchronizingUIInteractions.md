@@ -7,7 +7,7 @@ Wait for the state an interaction requires and reveal elements within a bounded 
 ### Wait for readiness
 
 An element can exist before its underlying feature is ready. Use
-``waitForEnabled(_:timeout:file:line:)`` when the next action requires an enabled
+``waitForEnabled(_:timeout:named:file:line:)`` when the next action requires an enabled
 control. Enabled state does not guarantee that the control is hittable; scrolling
 or another application-specific condition may also be necessary.
 
@@ -23,9 +23,9 @@ func submitWhenReady(in app: XCUIApplication) {
 }
 ```
 
-``waitForExistence(_:timeout:file:line:)`` checks hierarchy membership only.
-``waitForValue(_:on:timeout:file:line:)`` compares an exact accessibility value;
-``waitForValueContaining(_:on:timeout:file:line:)`` compares a literal substring.
+``waitForExistence(_:timeout:named:file:line:)`` checks hierarchy membership only.
+``waitForValue(_:on:timeout:named:file:line:)`` compares an exact accessibility value;
+``waitForValueContaining(_:on:timeout:named:file:line:)`` compares a literal substring.
 Both string comparisons are case-sensitive and require existence within the same
 timeout budget. They observe `value`, not `label`.
 

@@ -1,4 +1,8 @@
-import CoreGraphics
+#if canImport(CoreGraphics)
+    import CoreGraphics
+#else
+    import Foundation
+#endif
 
 /// The direction text and content flow along the horizontal axis.
 ///
@@ -102,10 +106,5 @@ public enum ReadingOrder {
         return nil
     }
 
-    private static func isUsable(_ frame: CGRect) -> Bool {
-        !frame.isEmpty && !frame.isNull && !frame.isInfinite
-            && frame.origin.x.isFinite && frame.origin.y.isFinite
-            && frame.size.width.isFinite && frame.size.height.isFinite
-            && frame.midX.isFinite && frame.midY.isFinite
-    }
+    private static func isUsable(_ frame: CGRect) -> Bool { FrameGeometry.isUsable(frame) }
 }

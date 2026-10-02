@@ -20,10 +20,10 @@ Keep application launch configuration and accessibility identifiers in your own 
 
 ### Element state assertions
 
-- ``waitForExistence(_:timeout:file:line:)``
-- ``waitForEnabled(_:timeout:file:line:)``
-- ``waitForValue(_:on:timeout:file:line:)``
-- ``waitForValueContaining(_:on:timeout:file:line:)``
+- ``waitForExistence(_:timeout:named:file:line:)``
+- ``waitForEnabled(_:timeout:named:file:line:)``
+- ``waitForValue(_:on:timeout:named:file:line:)``
+- ``waitForValueContaining(_:on:timeout:named:file:line:)``
 
 ### Layout assertions
 
@@ -32,3 +32,17 @@ Keep application launch configuration and accessibility identifiers in your own 
 ### Bounded scrolling
 
 - ``TestCommonsXCUI/XCUIAutomation``
+
+### Interaction readiness
+
+- ``waitForHittability(_:timeout:named:file:line:)``
+- ``waitForAbsence(_:timeout:named:file:line:)``
+- ``waitForLabel(_:on:timeout:named:file:line:)``
+- ``waitForLabelContaining(_:on:timeout:named:file:line:)``
+
+### Automation support
+
+- ``attachDiagnostics(of:to:named:lifetime:)``
+- ``configureLocale(of:language:locale:)``
+- ``uniqueHittableElement(in:file:line:)``
+- ``replaceText(in:with:caretOffset:timeout:file:line:)``

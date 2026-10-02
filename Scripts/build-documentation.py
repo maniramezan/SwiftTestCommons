@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build both DocC archives and verify declared API coverage and guide examples."""
+"""Build all DocC archives and verify declared API coverage and guide examples."""
 
 import json
 import re
@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / ".build" / "documentation"
 PRODUCTS = OUTPUT / "Build" / "Products" / "Debug-iphonesimulator"
-MODULES = ("TestCommons", "TestCommonsXCUI")
+MODULES = ("TestCommons", "TestCommonsXCUI", "TestCommonsUI")
 
 
 def build():
@@ -25,9 +25,12 @@ def build():
         "OTHER_DOCC_FLAGS=--warnings-as-errors --analyze "
         "--experimental-documentation-coverage",
     ]
-    print("Building DocC archives for both products…", flush=True)
+    print("Building DocC archives for all products…", flush=True)
     with log.open("w") as stream:
         result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        if result.returncode == 0:
+            command[2] = "TestCommonsUI"
+            result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode:
         print(log.read_text())
         raise SystemExit(result.returncode)

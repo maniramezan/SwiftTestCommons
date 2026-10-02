@@ -41,3 +41,12 @@ jobs:
 
       - name: Build XCUITest helpers for iOS
         run: xcodebuild -scheme TestCommonsXCUI -destination 'generic/platform=iOS Simulator' build
+
+  linux:
+    name: Linux core build and tests
+    runs-on: ubuntu-latest
+    container: swift:6.2.4-noble
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: swift build --target TestCommons
+      - run: swift test

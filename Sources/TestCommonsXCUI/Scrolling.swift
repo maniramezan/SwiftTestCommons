@@ -1,4 +1,4 @@
-#if canImport(XCTest)
+#if canImport(XCTest) && (os(macOS) || os(iOS))
     import XCTest
 
     /// Bounded scrolling operations for revealing descendants in UI tests.

@@ -12,6 +12,9 @@
 /// - ``record(_:)``
 /// - ``values()``
 /// - ``lastValue()``
+/// - ``count``
+/// - ``waitForCount(_:timeout:)``
+/// - ``reset()``
 public actor CallRecorder<Value: Sendable> {
     private var recordedValues: [Value] = []
 
@@ -23,6 +26,24 @@ public actor CallRecorder<Value: Sendable> {
     /// - Parameter value: The argument or event to record.
     public func record(_ value: Value) {
         recordedValues.append(value)
+    }
+
+    /// The number of recorded calls.
+    public var count: Int { recordedValues.count }
+
+    /// Clears the current history; pending count waits observe the new history.
+    public func reset() { recordedValues.removeAll() }
+
+    /// Waits for at least the requested number of calls and returns the history.
+    /// - Parameters:
+    ///   - count: The nonnegative minimum call count.
+    ///   - timeout: The total monotonic wait budget.
+    /// - Returns: A snapshot containing at least `count` calls.
+    /// - Throws: Cancellation or `ObservationTimeout` containing the last history.
+    public func waitForCount(_ count: Int, timeout: Duration) async throws -> [Value] {
+        precondition(count >= 0)
+        return try await waitUntil(
+            timeout: timeout, operation: { await self.values() }, matching: { $0.count >= count })
     }
 
     /// Returns a snapshot of all recorded values in arrival order.
