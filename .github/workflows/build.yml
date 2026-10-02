@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    name: Format, Build, and Test
+    name: Format, Build, Test, and DocC
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -29,6 +29,9 @@ jobs:
 
       - name: Build
         run: swift build
+
+      - name: Build DocC documentation
+        run: xcodebuild docbuild -scheme TestCommons -destination 'generic/platform=macOS'
 
       - name: Test
         run: swift test
