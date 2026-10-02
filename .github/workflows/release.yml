@@ -1,0 +1,145 @@
+name: Release
+
+# Tags the repository and publishes a GitHub Release (with auto-generated notes)
+# whenever the "CI" workflow succeeds on main. Versions are derived from
+# Conventional Commit subjects since the previous tag; no CHANGELOG.md is kept —
+# release notes live on the GitHub Release itself.
+#
+# Tags are bare SemVer with NO "v" prefix (e.g. 0.1.0, 0.2.0).
+#
+# Bump rules (0.x, pre-1.0):
+#   feat: / <type>! / BREAKING CHANGE  -> minor   (0.1.0 -> 0.2.0)
+#   fix: / perf:                       -> patch   (0.1.0 -> 0.1.1)
+#   anything else (chore/docs/…)       -> no release
+# After a manual bump to 1.0.0, standard SemVer applies (breaking -> major).
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_version:
+        description: "Force an exact version, e.g. 0.2.0 (bypasses commit analysis)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and publish GitHub Release
+    runs-on: ubuntu-latest
+    # Only proceed on a manual run, or when the gating CI run actually succeeded.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          # Tag the exact commit CI validated; full history for tag discovery.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: version
+        env:
+          FORCE_VERSION: ${{ github.event.inputs.force_version }}
+        run: |
+          set -euo pipefail
+
+          # Only consider bare SemVer tags (no "v" prefix).
+          latest_tag="$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
+
+          # Manual override wins. Strip any accidental leading "v".
+          if [ -n "${FORCE_VERSION:-}" ]; then
+            next="${FORCE_VERSION#v}"
+            echo "Forcing version $next"
+            echo "tag=$next" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # First release — bootstrap at 0.1.0.
+          if [ -z "$latest_tag" ]; then
+            echo "No existing tags; bootstrapping 0.1.0"
+            echo "tag=0.1.0" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Latest tag: $latest_tag"
+          version="${latest_tag#v}"
+          major="${version%%.*}"
+          rest="${version#*.}"
+          minor="${rest%%.*}"
+          patch="${rest#*.}"
+
+          range="${latest_tag}..HEAD"
+          if [ -z "$(git log "$range" --format='%H')" ]; then
+            echo "No commits since $latest_tag; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          breaking=false; feat=false; fix=false
+          if git log "$range" --format='%s' | grep -Eq '^[a-zA-Z]+(\([^)]+\))?!:'; then breaking=true; fi
+          if git log "$range" --format='%B' | grep -Eq 'BREAKING[ -]CHANGE'; then breaking=true; fi
+          if git log "$range" --format='%s' | grep -Eq '^feat(\([^)]+\))?!?:'; then feat=true; fi
+          if git log "$range" --format='%s' | grep -Eq '^(fix|perf)(\([^)]+\))?!?:'; then fix=true; fi
+
+          bump="none"
+          if [ "$major" -eq 0 ]; then
+            if [ "$breaking" = true ] || [ "$feat" = true ]; then bump="minor"
+            elif [ "$fix" = true ]; then bump="patch"
+            fi
+          else
+            if [ "$breaking" = true ]; then bump="major"
+            elif [ "$feat" = true ]; then bump="minor"
+            elif [ "$fix" = true ]; then bump="patch"
+            fi
+          fi
+
+          if [ "$bump" = "none" ]; then
+            echo "No releasable commits (feat/fix/perf/breaking) since $latest_tag."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          next="${major}.${minor}.${patch}"
+          echo "Bump: $bump -> $next"
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and GitHub Release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+
+          if git rev-parse --verify --quiet "refs/tags/${tag}"; then
+            echo "Tag ${tag} already exists; skipping."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "$tag"
+          git push origin "$tag"
+
+          gh release create "$tag" --title "$tag" --generate-notes
