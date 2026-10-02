@@ -46,8 +46,8 @@ the owning application; pass only generic values and resource locations to these
 - ``AsyncGate``
 - ``waitUntil(timeout:pollInterval:operation:matching:)``
 - ``ObservationTimeout``
-- ``observeStream(_:maxCount:timeout:until:)-(AsyncStream<Element>,_,_,_)``
-- ``observeStream(_:maxCount:timeout:until:)-(AsyncThrowingStream<Element,Error>,_,_,_)``
+- ``observeStream(_:maxCount:timeout:until:)-2hrsm``
+- ``observeStream(_:maxCount:timeout:until:)-64evh``
 - ``StreamObservation``
 
 ### Fixtures and layout checks
