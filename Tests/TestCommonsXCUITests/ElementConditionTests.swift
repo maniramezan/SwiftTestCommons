@@ -44,6 +44,19 @@
             #expect(ElementCondition.valueContaining("100% %@").predicate.evaluate(with: attributes))
         }
 
+        @Test(arguments: [
+            (ElementCondition.enabled, "exist and become enabled"),
+            (.hittable, "exist and become hittable"),
+            (.absent, "disappear"),
+            (.label("Done"), "exist with label equal to 'Done'"),
+            (.labelContaining("Do"), "exist with label containing 'Do'"),
+            (.value("1"), "exist with value equal to '1'"),
+            (.valueContaining("1"), "exist with value containing '1'"),
+        ])
+        func failureDescriptionsNameTheCondition(condition: ElementCondition, description: String) {
+            #expect(condition.description == description)
+        }
+
         @Test
         func missingValuesDoNotMatch() {
             let attributes: NSDictionary = ["exists": true, "value": NSNull()]
