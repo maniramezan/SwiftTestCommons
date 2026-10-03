@@ -111,6 +111,10 @@ def check_examples():
     sdk = Path(subprocess.check_output(
         ["xcrun", "--sdk", "iphonesimulator", "--show-sdk-path"], text=True
     ).strip())
+    compiler = Path(subprocess.check_output(
+        ["xcrun", "--find", "swiftc"], text=True
+    ).strip())
+    testing_plugin = compiler.parent.parent / "lib/swift/host/plugins/testing/libTestingMacros.dylib"
     examples = OUTPUT / "examples"
     examples.mkdir(exist_ok=True)
     count = 0
@@ -126,6 +130,7 @@ def check_examples():
                     "-I", str(PRODUCTS),
                     "-I", str(sdk.parents[1] / "usr" / "lib"),
                     "-F", str(sdk.parents[1] / "Library" / "Frameworks"),
+                    "-load-plugin-library", str(testing_plugin),
                     str(source),
                 ], cwd=ROOT, check=True)
                 count += 1

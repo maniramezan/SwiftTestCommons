@@ -25,7 +25,7 @@ SOURCES = ROOT / "Sources"
 # Minimum line coverage (percent) for each target's sources. Raise these as tests
 # improve; never lower them to make a pull request pass.
 TARGET_THRESHOLDS = {
-    "TestCommons": 97.0,
+    "TestCommons": 99.0,
     "TestCommonsUI": 95.0,
     # XCUIElement-driven waits need a UI-test host application; this floor covers the
     # pure logic extracted from them and keeps new untested code from lowering it.

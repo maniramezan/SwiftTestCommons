@@ -108,4 +108,41 @@ struct StubbedURLSessionTests {
         let (data, _) = try await second.session.data(from: url)
         #expect(String(decoding: data, as: UTF8.self) == "second")
     }
+
+    @Test(arguments: [false, true])
+    func endingAStubCancelsRetainedSessionTasksBeforeReusingItsRoute(explicitlyInvalidate: Bool) async throws {
+        var first: StubbedURLSession? = try StubbedURLSession { _ in .text("first") }
+        let session = try #require(first?.session)
+        defer { session.invalidateAndCancel() }
+        let registered = AsyncGate()
+        let pending = TestValueBox<URLSessionDataTask?>(nil)
+        async let result: Data = withCheckedThrowingContinuation { continuation in
+            let task = session.dataTask(with: url) { data, _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: data ?? Data())
+                }
+            }
+            pending.set(task)
+            registered.open()
+        }
+        try await registered.wait()
+        if explicitlyInvalidate { first?.invalidate() }
+        first = nil
+
+        let second = try StubbedURLSession { _ in .text("second") }
+        defer { second.invalidate() }
+        pending.get()?.resume()
+        do {
+            _ = try await result
+            Issue.record("The old session task should have been cancelled")
+        } catch let error as URLError {
+            #expect(error.code == .cancelled)
+        }
+        #expect(second.requests.isEmpty)
+        let (data, _) = try await second.session.data(from: url)
+        #expect(String(decoding: data, as: UTF8.self) == "second")
+        #expect(second.requests.count == 1)
+    }
 }

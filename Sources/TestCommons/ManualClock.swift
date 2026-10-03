@@ -120,7 +120,7 @@ public final class ManualClock: Clock, Sendable {
     /// - Parameter duration: A nonnegative amount of manual time.
     public func advance(by duration: Duration) {
         precondition(duration >= .zero, "ManualClock cannot move backward")
-        advance(to: now.advanced(by: duration))
+        advance { $0.advanced(by: duration) }
     }
 
     /// Moves manual time to `instant` and resumes sleepers due at or before it.
@@ -128,8 +128,12 @@ public final class ManualClock: Clock, Sendable {
     /// An instant earlier than ``now`` leaves time unchanged.
     /// - Parameter instant: The target instant.
     public func advance(to instant: Instant) {
+        advance { max($0, instant) }
+    }
+
+    private func advance(_ update: (Instant) -> Instant) {
         let due: [Sleeper] = state.withLock { state in
-            state.now = max(state.now, instant)
+            state.now = update(state.now)
             let ready = state.sleepers.filter { $0.value.deadline <= state.now }
             for id in ready.keys { state.sleepers.removeValue(forKey: id) }
             return ready.values.sorted { $0.deadline < $1.deadline }

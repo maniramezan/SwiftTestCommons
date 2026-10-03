@@ -7,7 +7,7 @@ import Foundation
 /// A `URLSession` whose requests are answered in process by a caller-supplied handler.
 ///
 /// Each instance routes only its own session's requests, so parallel tests can stub
-/// independently without global state, on Apple platforms and Linux alike. Inject
+/// independently, on Apple platforms and Linux alike. Inject
 /// ``session`` into the code under test, then inspect ``requests``. Throw a `URLError`
 /// from the handler to simulate a transport failure. Uploaded bodies are recorded in
 /// `httpBody`. On Linux, FoundationNetworking passes custom protocols only the request
@@ -16,8 +16,10 @@ import Foundation
 ///
 /// Up to ``maximumConcurrentSessions`` stubs can be alive at once; creating another
 /// throws ``PoolExhausted``. Keep the stub alive while its session is in use:
-/// ``invalidate()`` or deinitialization stops routing, and unrouted requests fail with
-/// `URLError(.unsupportedURL)` instead of reaching the network.
+/// ``invalidate()`` or deinitialization cancels the session. Its route is released
+/// after session invalidation finishes, so outstanding requests cannot reach a replacement stub.
+/// Finish using the session before either occurs; invalidated sessions cannot be reused.
+/// Unrouted requests fail instead of reaching the network.
 ///
 /// ```swift
 /// let stub = try StubbedURLSession(responses: [.json(#"{"id":1}"#), .text("busy", statusCode: 503)])
@@ -49,9 +51,22 @@ public final class StubbedURLSession: Sendable {
 
     /// The session to inject into the code under test.
     public let session: URLSession
-    private let slot: Int
     private let owner = UUID()
     private let recorded = TestValueBox<[URLRequest]>([])
+
+    private final class SessionDelegate: NSObject, URLSessionDelegate {
+        private let slot: Int
+        private let owner: UUID
+
+        init(slot: Int, owner: UUID) {
+            self.slot = slot
+            self.owner = owner
+        }
+
+        func urlSession(_ session: URLSession, didBecomeInvalidWithError error: (any Error)?) {
+            StubURLProtocol.release(slot, owner: owner)
+        }
+    }
 
     /// Creates a session that answers each request with `handler`.
     ///
@@ -71,10 +86,11 @@ public final class StubbedURLSession: Sendable {
             return try handler(request)
         }
         guard let slot = StubURLProtocol.acquire(owner: owner, route) else { throw PoolExhausted() }
-        self.slot = slot
         let configuration = (configuration.copy() as? URLSessionConfiguration) ?? .ephemeral
         configuration.protocolClasses = [StubURLProtocol.pool[slot]]
-        session = URLSession(configuration: configuration)
+        session = URLSession(
+            configuration: configuration,
+            delegate: SessionDelegate(slot: slot, owner: owner), delegateQueue: nil)
     }
 
     /// Creates a session that answers requests with `responses` in order.
@@ -92,16 +108,16 @@ public final class StubbedURLSession: Sendable {
         }
     }
 
-    deinit { StubURLProtocol.release(slot, owner: owner) }
+    deinit { invalidate() }
 
     /// The requests received so far in arrival order.
     public var requests: [URLRequest] { recorded.get() }
 
     /// Cancels outstanding tasks and stops routing requests to the handler.
     ///
-    /// Repeat calls are harmless. Deinitialization also stops routing.
+    /// Repeat calls are harmless. Deinitialization also cancels the session.
+    /// The route becomes reusable after session invalidation finishes.
     public func invalidate() {
-        StubURLProtocol.release(slot, owner: owner)
         session.invalidateAndCancel()
     }
 }
