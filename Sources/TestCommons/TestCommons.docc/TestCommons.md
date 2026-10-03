@@ -20,6 +20,7 @@ the owning application; pass only generic values and resource locations to these
 - <doc:RecordingDependencyCalls>
 - <doc:IsolatingTemporaryStorage>
 - <doc:FindingSnapshotReferences>
+- <doc:FakingDependenciesAndTime>
 
 ### Frame geometry
 
@@ -40,6 +41,13 @@ the owning application; pass only generic values and resource locations to these
 ### Snapshot integration
 
 - ``SnapshotReferenceDirectory``
+
+### Test doubles
+
+- ``ScriptedResponder``
+- ``StubbedURLSession``
+- ``StubResponse``
+- ``ManualClock``
 
 ### Async coordination and observation
 

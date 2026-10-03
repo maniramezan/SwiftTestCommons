@@ -6,8 +6,9 @@ Give each parallel test its own directory and preferences suite with explicit cl
 
 ### Create a scratch directory
 
-``TemporaryDirectory/init()`` creates an empty UUID-named directory beneath the
-system temporary directory. Use its URL to inject file locations into the code
+``TemporaryDirectory/init(prefix:)`` creates an empty UUID-named directory beneath the
+system temporary directory. Pass a `prefix` such as the test name to make leftover
+directories easy to identify. Use its URL to inject file locations into the code
 under test.
 
 ```swift
