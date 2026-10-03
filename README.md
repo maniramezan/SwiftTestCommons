@@ -216,6 +216,22 @@ plain fields exposing their actual string contents, an explicit trailing caret
 coordinate, and final value verification. Secure or placeholder-only fields need
 a caller-owned interaction strategy.
 
+## Test doubles
+
+`ScriptedResponder<Request, Response>` records requests and answers call *n* with scripted
+outcome *n*. `hold(call:)` suspends one call so in-flight state can be asserted; running out
+of outcomes throws `ScriptedResponder.Exhausted`, never a scripted error.
+
+`StubbedURLSession` answers one session's requests in process, from a handler or a list of
+`StubResponse`s, and records them with bodies. Sessions are isolated, so parallel tests can stub
+independently, on Apple platforms and Linux. Keep the stub alive while its session is in use,
+and invalidate it when the test finishes.
+
+`ManualClock` is a `Clock` whose sleeps resume only when a test calls `advance(by:)` or
+`advance(to:)`. Wait with `waitForSleepers(_:)` before advancing.
+
+`TemporaryDirectory(prefix:)` labels a scratch directory, for example with the test name.
+
 ## Hosted SwiftUI views
 
 `TestCommonsUI.HostedView` owns a platform hierarchy, renders PNG bytes, waits for

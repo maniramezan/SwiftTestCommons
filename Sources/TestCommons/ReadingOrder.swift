@@ -49,7 +49,9 @@ public enum ReadingOrder {
     public static func sharesRow(
         _ a: CGRect, _ b: CGRect, tolerance: CGFloat = defaultRowTolerance
     ) -> Bool {
-        guard tolerance.isFinite, tolerance > 0, isUsable(a), isUsable(b) else { return false }
+        guard tolerance.isFinite, tolerance > 0, isUsable(a), isUsable(b) else {
+            return false
+        }
         return abs(a.midY - b.midY) < tolerance
     }
 
@@ -70,7 +72,9 @@ public enum ReadingOrder {
         _ second: CGRect, _ first: CGRect, in direction: ReadingDirection,
         rowTolerance: CGFloat = defaultRowTolerance
     ) -> Bool {
-        guard sharesRow(first, second, tolerance: rowTolerance) else { return false }
+        guard sharesRow(first, second, tolerance: rowTolerance) else {
+            return false
+        }
         switch direction {
         case .leftToRight: return second.midX > first.midX
         case .rightToLeft: return second.midX < first.midX
@@ -100,7 +104,9 @@ public enum ReadingOrder {
             let next = successor(key)
             guard next > key, let first = frames[key], let second = frames[next],
                 sharesRow(first, second, tolerance: rowTolerance)
-            else { continue }
+            else {
+                continue
+            }
             return (first, second)
         }
         return nil

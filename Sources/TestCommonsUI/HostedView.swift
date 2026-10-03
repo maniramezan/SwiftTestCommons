@@ -47,7 +47,9 @@
                 window = NSWindow(
                     contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
                 window.contentView = hosting
-                if visible { window.orderFront(nil) }
+                if visible {
+                    window.orderFront(nil)
+                }
                 window.layoutIfNeeded()
                 hosting.layoutSubtreeIfNeeded()
             #elseif canImport(UIKit)
@@ -90,7 +92,9 @@
         /// - Parameter reference: A comparable PNG produced by the same rendering setup.
         /// - Returns: Whether rendering succeeded and the frame differs from the reference.
         public func rendersDifferently(from reference: Data) -> Bool {
-            guard let frame = renderPNG() else { return false }
+            guard let frame = renderPNG() else {
+                return false
+            }
             return frame != reference
         }
 

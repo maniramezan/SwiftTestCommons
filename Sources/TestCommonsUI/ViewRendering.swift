@@ -26,7 +26,9 @@
         public static func pngData(of view: RenderableView) -> Data? {
             #if canImport(AppKit)
                 view.layoutSubtreeIfNeeded()
-                guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+                guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+                    return nil
+                }
                 view.cacheDisplay(in: view.bounds, to: bitmap)
                 return bitmap.representation(using: .png, properties: [:])
             #elseif canImport(UIKit)
@@ -78,7 +80,9 @@
             stable = frame != nil && frame == previous ? stable + 1 : (frame == nil ? 0 : 1)
             previous = frame
             sampled += 1
-            if sampled >= minimumFrames && stable >= requiredStableFrames { return true }
+            if sampled >= minimumFrames && stable >= requiredStableFrames {
+                return true
+            }
         }
         return false
     }

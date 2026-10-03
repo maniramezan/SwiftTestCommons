@@ -36,8 +36,12 @@ public final class AsyncGate: Sendable {
                     state.waiters[id] = continuation
                     return 0
                 }
-                if outcome == 1 { continuation.resume(throwing: CancellationError()) }
-                if outcome == 2 { continuation.resume() }
+                if outcome == 1 {
+                    continuation.resume(throwing: CancellationError())
+                }
+                if outcome == 2 {
+                    continuation.resume()
+                }
             }
         } onCancel: {
             let waiter = state.withLock { $0.waiters.removeValue(forKey: id) }

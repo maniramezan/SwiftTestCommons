@@ -8,7 +8,7 @@ import Foundation
 /// ## Topics
 ///
 /// ### Managing a directory
-/// - ``init()``
+/// - ``init(prefix:)``
 /// - ``url``
 /// - ``remove()``
 /// - ``write(_:named:)``
@@ -16,14 +16,23 @@ public struct TemporaryDirectory: Sendable {
     /// The unique directory URL, created beneath the system temporary directory.
     public let url: URL
 
-    /// Creates an empty directory with a UUID name.
+    /// Creates an empty directory with a UUID name, optionally labeled for diagnostics.
     ///
     /// Copies of this value refer to the same directory; they do not create
     /// independent resources. Cleanup is explicit, not tied to deinitialization.
-    /// - Throws: A file-system error if the directory cannot be created.
-    public init() throws {
-        url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    /// - Parameter prefix: An optional label placed before the UUID, such as a test name,
+    ///   to identify leftover directories. It must be nonempty and contain no `/`.
+    /// - Throws: An invalid-filename error for an unusable prefix, or a file-system
+    ///   error if the directory cannot be created.
+    public init(prefix: String? = nil) throws {
+        var name = UUID().uuidString
+        if let prefix {
+            guard !prefix.isEmpty, !prefix.contains("/"), prefix != ".", prefix != ".." else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
+            name = "\(prefix)-\(name)"
+        }
+        url = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
     }
 

@@ -7,9 +7,15 @@
   Anything that imports a testing framework belongs in a separate product.
 - Helpers are generic: no app, calendar, or design-system identifiers. Pass app-specific details in as parameters.
 - Swift Testing (`@Test`) for this package's own tests. Comments go on their own line above the code.
+- One type per file, named after the type; nested types stay with their parent. Tests mirror this:
+  one `<Type>Tests.swift` per type under test. Free functions live in a file named for the feature.
 - `swift build`, `swift test --enable-code-coverage`, `python3 Scripts/check-coverage.py --diff-base origin/main`,
   and `swift format lint --strict --recursive Package.swift Sources Tests` before every PR.
 - CI fails when a target drops below its coverage floor or changed lines are under 90% covered.
   Raise floors in `Scripts/check-coverage.py` as coverage improves; never lower them to pass a PR.
   Extract XCUIElement-free logic from `TestCommonsXCUI` into internal functions so it can be unit tested.
+- Prefer readability for `if` and `guard` bodies: short, obvious early exits may stay on one line
+  (for example, `guard let self else { return }`). Use multiline bodies for complex conditions,
+  error construction, or meaningful work. This is a review guideline, not a strict lint rule.
+  Use Apple’s official `swift format` tool.
 - Conventional Commits. Never add a `Co-Authored-By` trailer. Never add a `CHANGELOG.md`.

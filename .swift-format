@@ -9,5 +9,6 @@
         "AvoidRetroactiveConformances": false,
         "NoAccessLevelOnExtensionDeclaration": false,
         "NoBlockComments": true
-    }
+    },
+    "respectsExistingLineBreaks": true
 }

@@ -25,7 +25,7 @@ SOURCES = ROOT / "Sources"
 # Minimum line coverage (percent) for each target's sources. Raise these as tests
 # improve; never lower them to make a pull request pass.
 TARGET_THRESHOLDS = {
-    "TestCommons": 97.0,
+    "TestCommons": 99.0,
     "TestCommonsUI": 95.0,
     # XCUIElement-driven waits need a UI-test host application; this floor covers the
     # pure logic extracted from them and keeps new untested code from lowering it.
@@ -117,6 +117,11 @@ def changed_lines(base):
             match = re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)
             start, length = int(match.group(1)), int(match.group(2) or "1")
             current.update(range(start, start + length))
+    # New files that are not yet tracked are entirely changed when checking locally.
+    untracked = run(["git", "ls-files", "--others", "--exclude-standard", "--", "Sources"])
+    for name in untracked.splitlines():
+        path = (ROOT / name).resolve()
+        changes[path] = set(range(1, len(path.read_text().splitlines()) + 1))
     return changes
 
 
