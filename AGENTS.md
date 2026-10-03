@@ -7,6 +7,8 @@
   Anything that imports a testing framework belongs in a separate product.
 - Helpers are generic: no app, calendar, or design-system identifiers. Pass app-specific details in as parameters.
 - Swift Testing (`@Test`) for this package's own tests. Comments go on their own line above the code.
+- One type per file, named after the type; nested types stay with their parent. Tests mirror this:
+  one `<Type>Tests.swift` per type under test. Free functions live in a file named for the feature.
 - `swift build`, `swift test --enable-code-coverage`, `python3 Scripts/check-coverage.py --diff-base origin/main`,
   and `swift format lint --strict --recursive Package.swift Sources Tests` before every PR.
 - CI fails when a target drops below its coverage floor or changed lines are under 90% covered.
