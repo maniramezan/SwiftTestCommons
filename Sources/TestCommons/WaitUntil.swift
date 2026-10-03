@@ -1,12 +1,3 @@
-/// A condition did not match before its deadline.
-///
-/// ## Topics
-/// - ``lastObservation``
-public struct ObservationTimeout<Value: Sendable>: Error {
-    /// The most recent value observed before the deadline.
-    public let lastObservation: Value
-}
-
 /// Observes asynchronous state until it matches a predicate.
 ///
 /// The deadline uses a monotonic clock. The operation must return promptly and
