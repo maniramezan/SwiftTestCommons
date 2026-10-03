@@ -14,6 +14,5 @@
 - CI fails when a target drops below its coverage floor or changed lines are under 90% covered.
   Raise floors in `Scripts/check-coverage.py` as coverage improves; never lower them to pass a PR.
   Extract XCUIElement-free logic from `TestCommonsXCUI` into internal functions so it can be unit tested.
-- Keep `if` and `guard` bodies, including `else` branches, multiline. Apple `swift format` remains the formatter;
-  run `Scripts/check-multiline-conditionals.sh` as the supplemental syntax check before every PR.
+- Keep `if` and `guard` bodies, including `else` branches, multiline. Use Apple’s official `swift format` tool.
 - Conventional Commits. Never add a `Co-Authored-By` trailer. Never add a `CHANGELOG.md`.
