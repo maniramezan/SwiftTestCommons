@@ -29,9 +29,7 @@
                 return bitmap.representation(using: .png, properties: [:])
             #elseif canImport(UIKit)
                 view.layoutIfNeeded()
-                guard !view.bounds.isEmpty else {
-                    return nil
-                }
+                guard !view.bounds.isEmpty else { return nil }
                 return UIGraphicsImageRenderer(size: view.bounds.size).pngData { _ in
                     view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
                 }

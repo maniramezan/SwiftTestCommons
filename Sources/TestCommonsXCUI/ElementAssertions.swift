@@ -178,9 +178,7 @@
         name: String, file: StaticString, line: UInt
     ) -> Bool {
         let predicate = condition.predicate
-        if predicate.evaluate(with: element) {
-            return true
-        }
+        if predicate.evaluate(with: element) { return true }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
         let succeeded = result == .completed

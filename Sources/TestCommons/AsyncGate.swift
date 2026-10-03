@@ -31,12 +31,8 @@ public final class AsyncGate: Sendable {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 let outcome: Int = state.withLock { state in
-                    if Task.isCancelled {
-                        return 1
-                    }
-                    if state.isOpen {
-                        return 2
-                    }
+                    if Task.isCancelled { return 1 }
+                    if state.isOpen { return 2 }
                     state.waiters[id] = continuation
                     return 0
                 }

@@ -64,9 +64,7 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     /// - Returns: The gate to open when the call may proceed.
     public func hold(call: Int) -> AsyncGate {
         precondition(call >= 0)
-        if let gate = gates[call] {
-            return gate
-        }
+        if let gate = gates[call] { return gate }
         let gate = AsyncGate()
         gates[call] = gate
         return gate
