@@ -4,20 +4,6 @@
     import Foundation
 #endif
 
-/// The direction text and content flow along the horizontal axis.
-///
-/// ## Topics
-///
-/// ### Horizontal directions
-/// - ``leftToRight``
-/// - ``rightToLeft``
-public enum ReadingDirection: Sendable, Equatable {
-    /// Content advances toward increasing horizontal coordinates.
-    case leftToRight
-    /// Content advances toward decreasing horizontal coordinates.
-    case rightToLeft
-}
-
 /// Pure frame geometry for asserting that content follows its reading direction.
 ///
 /// Everything here works on `CGRect`s, so the same check backs XCUITest, hosted-view tests, and

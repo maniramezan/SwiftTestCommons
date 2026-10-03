@@ -1,28 +1,12 @@
 import Foundation
 import Testing
 import TestCommons
+
 #if canImport(CoreGraphics)
     import CoreGraphics
 #endif
 
-struct FixtureValuesTests {
-    @Test func environmentOverridesDoNotMutateTheirBase() {
-        let base = ["KEEP": "yes", "REMOVE": "old"]
-        let result = fixtureEnvironment(base: base, overrides: ["REMOVE": nil, "ADD": "new"])
-        #expect(result == ["KEEP": "yes", "ADD": "new"])
-        #expect(base["REMOVE"] == "old")
-    }
-
-    @Test func roundTripUsesCallerDatePolicy() throws {
-        struct Fixture: Codable, Equatable { let date: Date }
-        let fixture = Fixture(date: Date(timeIntervalSince1970: 1.125))
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .millisecondsSince1970
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .millisecondsSince1970
-        #expect(try jsonRoundTrip(fixture, encoder: encoder, decoder: decoder) == fixture)
-    }
-
+struct FrameGeometryTests {
     @Test func layoutChecksRejectEmptyFramesAndTouchingEdges() {
         let first = CGRect(x: 0, y: 0, width: 10, height: 10)
         let touching = first.offsetBy(dx: 10, dy: 0)
