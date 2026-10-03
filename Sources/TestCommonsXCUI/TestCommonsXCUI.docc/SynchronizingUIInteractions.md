@@ -18,7 +18,9 @@ import TestCommonsXCUI
 @MainActor
 func submitWhenReady(in app: XCUIApplication) {
     let submit = app.buttons["submit"]
-    guard TestCommonsXCUI.waitForEnabled(submit, timeout: 5) else { return }
+    guard TestCommonsXCUI.waitForEnabled(submit, timeout: 5) else {
+        return
+    }
     submit.tap()
 }
 ```
@@ -70,7 +72,9 @@ import TestCommonsXCUI
 func revealAndTap(_ child: XCUIElement, in container: XCUIElement) {
     let revealed = container.scrollUpUntilHittable(child, maxAttempts: 8)
     XCTAssertTrue(revealed, "Expected the child to become hittable")
-    guard revealed else { return }
+    guard revealed else {
+        return
+    }
     child.tap()
 }
 ```
@@ -95,8 +99,12 @@ import TestCommonsXCUI
 
 @MainActor
 func checkHorizontalOrder(_ first: XCUIElement, _ second: XCUIElement) {
-    guard TestCommonsXCUI.waitForExistence(first, timeout: 5) else { return }
-    guard TestCommonsXCUI.waitForExistence(second, timeout: 5) else { return }
+    guard TestCommonsXCUI.waitForExistence(first, timeout: 5) else {
+        return
+    }
+    guard TestCommonsXCUI.waitForExistence(second, timeout: 5) else {
+        return
+    }
     XCTAssertReadingOrder(
         first: first.frame, second: second.frame,
         direction: .leftToRight, "Item order", rowTolerance: 1.5

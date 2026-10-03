@@ -85,7 +85,9 @@ public final class StubbedURLSession: Sendable {
             recorded.withValue { $0.append(request) }
             return try handler(request)
         }
-        guard let slot = StubURLProtocol.acquire(owner: owner, route) else { throw PoolExhausted() }
+        guard let slot = StubURLProtocol.acquire(owner: owner, route) else {
+            throw PoolExhausted()
+        }
         let configuration = (configuration.copy() as? URLSessionConfiguration) ?? .ephemeral
         configuration.protocolClasses = [StubURLProtocol.pool[slot]]
         session = URLSession(
@@ -102,8 +104,12 @@ public final class StubbedURLSession: Sendable {
     public convenience init(responses: [StubResponse], fallback: StubResponse? = nil) throws {
         let remaining = TestValueBox(responses[...])
         try self.init { _ in
-            if let next = remaining.withValue({ $0.popFirst() }) { return next }
-            guard let fallback else { throw URLError(.resourceUnavailable) }
+            if let next = remaining.withValue({ $0.popFirst() }) {
+                return next
+            }
+            guard let fallback else {
+                throw URLError(.resourceUnavailable)
+            }
             return fallback
         }
     }

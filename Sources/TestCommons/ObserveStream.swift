@@ -45,8 +45,12 @@ private func observe<S: AsyncSequence & Sendable>(
 ) async throws -> StreamObservation<S.Element> where S.Element: Sendable {
     precondition(maxCount >= 0 && timeout >= .zero)
     try Task.checkCancellation()
-    if maxCount == 0 { return .init(values: [], end: .limitReached) }
-    if timeout == .zero { return .init(values: [], end: .timedOut) }
+    if maxCount == 0 {
+        return .init(values: [], end: .limitReached)
+    }
+    if timeout == .zero {
+        return .init(values: [], end: .timedOut)
+    }
     let values = TestValueBox<[S.Element]>([])
     return try await withThrowingTaskGroup(of: StreamObservation<S.Element>.End.self) { group in
         group.addTask {
@@ -54,8 +58,12 @@ private func observe<S: AsyncSequence & Sendable>(
             while let value = try await iterator.next() {
                 try Task.checkCancellation()
                 values.withValue { $0.append(value) }
-                if predicate(value) { return .matched }
-                if values.get().count >= maxCount { return .limitReached }
+                if predicate(value) {
+                    return .matched
+                }
+                if values.get().count >= maxCount {
+                    return .limitReached
+                }
             }
             try Task.checkCancellation()
             return .finished

@@ -18,7 +18,9 @@
         for key in ["-AppleLanguages", "-AppleLocale"] {
             while let index = arguments.firstIndex(of: key) {
                 arguments.remove(at: index)
-                if index < arguments.count { arguments.remove(at: index) }
+                if index < arguments.count {
+                    arguments.remove(at: index)
+                }
             }
         }
         return arguments + ["-AppleLanguages", "(\(language))", "-AppleLocale", locale]

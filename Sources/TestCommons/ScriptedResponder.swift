@@ -64,7 +64,9 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     /// - Returns: The gate to open when the call may proceed.
     public func hold(call: Int) -> AsyncGate {
         precondition(call >= 0)
-        if let gate = gates[call] { return gate }
+        if let gate = gates[call] {
+            return gate
+        }
         let gate = AsyncGate()
         gates[call] = gate
         return gate
@@ -77,9 +79,15 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     public func respond(to request: Request) async throws -> Response {
         let index = requests.count
         requests.append(request)
-        if let gate = gates[index] { try await gate.wait() }
-        if index < outcomes.count { return try outcomes[index].get() }
-        guard let fallback else { throw Exhausted(callIndex: index) }
+        if let gate = gates[index] {
+            try await gate.wait()
+        }
+        if index < outcomes.count {
+            return try outcomes[index].get()
+        }
+        guard let fallback else {
+            throw Exhausted(callIndex: index)
+        }
         return try fallback.get()
     }
 

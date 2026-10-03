@@ -21,7 +21,9 @@
         file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
         let start = ContinuousClock.now
-        guard waitForHittability(element, timeout: timeout, file: file, line: line) else { return false }
+        guard waitForHittability(element, timeout: timeout, file: file, line: line) else {
+            return false
+        }
         guard let current = element.value as? String else {
             XCTFail(
                 "Editable field did not expose a string value.\n\(element.debugDescription)", file: file, line: line)
@@ -31,7 +33,9 @@
         if !current.isEmpty {
             element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
         }
-        if !text.isEmpty { element.typeText(text) }
+        if !text.isEmpty {
+            element.typeText(text)
+        }
         let remaining = remainingTimeout(timeout, elapsed: start.duration(to: .now))
         return waitForValue(text, on: element, timeout: remaining, file: file, line: line)
     }

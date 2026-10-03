@@ -82,11 +82,12 @@ struct ManualClockTests {
         try await kept.value
     }
 
-    @Test func alreadyCancelledSleepThrows() async {
+    @Test(arguments: [Duration.zero, .seconds(1)])
+    func alreadyCancelledSleepThrows(duration: Duration) async {
         let clock = ManualClock()
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            try await clock.sleep(for: .seconds(1))
+            try await clock.sleep(for: duration)
         }
         await #expect(throws: CancellationError.self) { try await task.value }
         #expect(clock.sleeperCount == 0)

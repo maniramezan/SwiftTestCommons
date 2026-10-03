@@ -49,7 +49,9 @@
         maxAttempts: Int, isHittable: () -> Bool, swipe: () -> Void
     ) -> Bool {
         for _ in 0..<max(0, maxAttempts) {
-            if isHittable() { return true }
+            if isHittable() {
+                return true
+            }
             swipe()
         }
         return isHittable()

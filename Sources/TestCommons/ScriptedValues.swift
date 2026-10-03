@@ -49,7 +49,9 @@ public struct ScriptedValues<Value: Sendable>: Sendable {
         switch exhaustion {
         case .fail: throw TestError()
         case .repeatLast:
-            guard let last = values.last else { throw TestError() }
+            guard let last = values.last else {
+                throw TestError()
+            }
             return last
         case .fallback(let value): return value
         }

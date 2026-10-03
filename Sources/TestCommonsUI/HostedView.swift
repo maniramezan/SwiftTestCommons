@@ -47,7 +47,9 @@
                 window = NSWindow(
                     contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
                 window.contentView = hosting
-                if visible { window.orderFront(nil) }
+                if visible {
+                    window.orderFront(nil)
+                }
                 window.layoutIfNeeded()
                 hosting.layoutSubtreeIfNeeded()
             #elseif canImport(UIKit)
@@ -63,7 +65,9 @@
 
         /// Detaches the hosted hierarchy. Repeat calls are harmless; further renders return nil.
         public func close() {
-            guard !closed else { return }
+            guard !closed else {
+                return
+            }
             closed = true
             #if canImport(AppKit)
                 window.contentView = nil
@@ -77,7 +81,9 @@
         /// Performs layout and captures the current rendered frame.
         /// - Returns: PNG bytes, or nil when closed or rendering is unavailable.
         public func renderPNG() -> Data? {
-            guard !closed else { return nil }
+            guard !closed else {
+                return nil
+            }
             #if canImport(AppKit)
                 window.layoutIfNeeded()
                 return ViewRendering.pngData(of: hosting)
@@ -90,7 +96,9 @@
         /// - Parameter reference: A comparable PNG produced by the same rendering setup.
         /// - Returns: Whether rendering succeeded and the frame differs from the reference.
         public func rendersDifferently(from reference: Data) -> Bool {
-            guard let frame = renderPNG() else { return false }
+            guard let frame = renderPNG() else {
+                return false
+            }
             return frame != reference
         }
 
@@ -108,7 +116,9 @@
             timeout: TimeInterval = 5, minimumFrames: Int = 8,
             requiredStableFrames: Int = 4, pollInterval: TimeInterval = 1.0 / 60
         ) -> Bool {
-            guard !closed else { return false }
+            guard !closed else {
+                return false
+            }
             return observeStableFrames(
                 timeout: timeout, minimumFrames: minimumFrames,
                 requiredStableFrames: requiredStableFrames, pollInterval: pollInterval,

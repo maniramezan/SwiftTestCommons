@@ -7,8 +7,18 @@ import Testing
     import FoundationNetworking
 #endif
 
+// Pool exhaustion requires exclusive access to the stubs owned by this suite.
+@Suite(.serialized)
 struct StubbedURLSessionTests {
     private let url: URL
+
+    private final class ReleaseSignal: Sendable {
+        let gate: AsyncGate
+
+        init(gate: AsyncGate) { self.gate = gate }
+
+        deinit { gate.open() }
+    }
 
     init() throws {
         url = try #require(URL(string: "https://example.test/items?page=1"))
@@ -27,6 +37,35 @@ struct StubbedURLSessionTests {
         #expect((secondResponse as? HTTPURLResponse)?.statusCode == 503)
         await #expect(throws: URLError.self) { try await stub.session.data(from: url) }
         #expect(stub.requests.count == 3)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func poolExhaustionThrowsInsteadOfSharingRoutes() async throws {
+        var stubs: [StubbedURLSession] = []
+        var releases: [AsyncGate] = []
+        defer { stubs.forEach { $0.invalidate() } }
+        var exhausted = false
+        for _ in 0...StubbedURLSession.maximumConcurrentSessions {
+            do {
+                let gate = AsyncGate()
+                let signal = ReleaseSignal(gate: gate)
+                stubs.append(
+                    try StubbedURLSession { _ in
+                        withExtendedLifetime(signal) { StubResponse() }
+                    })
+                releases.append(gate)
+            } catch is StubbedURLSession.PoolExhausted {
+                exhausted = true
+                break
+            }
+        }
+        #expect(exhausted)
+        #expect(stubs.count <= StubbedURLSession.maximumConcurrentSessions)
+        stubs.forEach { $0.invalidate() }
+        // Wait for route handlers to be released before another test acquires the pool.
+        for gate in releases {
+            try await gate.wait()
+        }
     }
 
     @Test func fallbackAndEmptyBodiesAreSupported() async throws {
@@ -128,7 +167,9 @@ struct StubbedURLSessionTests {
             registered.open()
         }
         try await registered.wait()
-        if explicitlyInvalidate { first?.invalidate() }
+        if explicitlyInvalidate {
+            first?.invalidate()
+        }
         first = nil
 
         let second = try StubbedURLSession { _ in .text("second") }

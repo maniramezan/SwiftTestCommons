@@ -19,7 +19,9 @@
             stable = frame != nil && frame == previous ? stable + 1 : (frame == nil ? 0 : 1)
             previous = frame
             sampled += 1
-            if sampled >= minimumFrames && stable >= requiredStableFrames { return true }
+            if sampled >= minimumFrames && stable >= requiredStableFrames {
+                return true
+            }
         }
         return false
     }

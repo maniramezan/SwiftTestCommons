@@ -22,12 +22,16 @@
         public static func pngData(of view: RenderableView) -> Data? {
             #if canImport(AppKit)
                 view.layoutSubtreeIfNeeded()
-                guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+                guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+                    return nil
+                }
                 view.cacheDisplay(in: view.bounds, to: bitmap)
                 return bitmap.representation(using: .png, properties: [:])
             #elseif canImport(UIKit)
                 view.layoutIfNeeded()
-                guard !view.bounds.isEmpty else { return nil }
+                guard !view.bounds.isEmpty else {
+                    return nil
+                }
                 return UIGraphicsImageRenderer(size: view.bounds.size).pngData { _ in
                     view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
                 }
