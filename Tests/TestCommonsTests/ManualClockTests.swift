@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import Testing
 
@@ -32,6 +33,34 @@ struct ManualClockTests {
         try await long.value
         #expect(order.get() == [1, 5])
         #expect(clock.now.offset == .seconds(5))
+    }
+
+    @Test func concurrentRelativeAdvancesAccumulate() async throws {
+        let clock = ManualClock()
+        async let sleeper: Void = clock.sleep(until: clock.now.advanced(by: .seconds(10_000)))
+        try await clock.waitForSleepers(1)
+
+        DispatchQueue.concurrentPerform(iterations: 10_000) { _ in
+            clock.advance(by: .seconds(1))
+        }
+
+        #expect(clock.now.offset == .seconds(10_000))
+        #expect(clock.sleeperCount == 0)
+        // Resume any remaining sleeper if a regression leaves the clock short of its deadline.
+        clock.advance(by: .seconds(10_000))
+        try await sleeper
+    }
+
+    @Test func structuredSleepIsCancelledWhenObservationThrows() async throws {
+        let clock = ManualClock()
+        func observe() async throws {
+            async let sleeper: Void = clock.sleep(for: .seconds(30))
+            try await clock.waitForSleepers(1)
+            throw TestError()
+        }
+
+        await #expect(throws: TestError()) { try await observe() }
+        #expect(clock.sleeperCount == 0)
     }
 
     @Test func movingToAnEarlierInstantKeepsTime() {

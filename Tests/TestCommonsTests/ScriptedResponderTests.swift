@@ -42,6 +42,19 @@ struct ScriptedResponderTests {
         await #expect(throws: CancellationError.self) { try await call.value }
     }
 
+    @Test func structuredHeldCallIsCancelledWhenObservationThrows() async throws {
+        let responder = ScriptedResponder<Int, Int>([.success(0)])
+        let gate = await responder.hold(call: 0)
+        func observe() async throws {
+            async let call = responder.respond(to: 7)
+            _ = try await responder.waitForCalls(1)
+            throw TestError()
+        }
+
+        await #expect(throws: TestError()) { try await observe() }
+        #expect(gate.waiterCount == 0)
+    }
+
     @Test func waitingForMissingCallsTimesOut() async {
         let responder = ScriptedResponder<Int, Int>([])
         await #expect(throws: ObservationTimeout<[Int]>.self) {
