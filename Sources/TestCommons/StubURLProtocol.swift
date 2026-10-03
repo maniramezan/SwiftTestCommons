@@ -90,9 +90,7 @@ class StubURLProtocol: URLProtocol {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
             let count = stream.read(&buffer, maxLength: buffer.count)
-            guard count > 0 else {
-                break
-            }
+            guard count > 0 else { break }
             data.append(buffer, count: count)
         }
         return data
