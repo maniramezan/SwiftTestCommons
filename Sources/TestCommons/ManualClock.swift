@@ -97,18 +97,25 @@ public final class ManualClock: Clock, Sendable {
     ///   - tolerance: Ignored; manual time is exact.
     /// - Throws: `CancellationError` if the task is cancelled before or while sleeping.
     public func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
-        try Task.checkCancellation()
         let id = UUID()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 let outcome: Int = state.withLock { state in
-                    if Task.isCancelled { return 1 }
-                    if deadline <= state.now { return 2 }
+                    if Task.isCancelled {
+                        return 1
+                    }
+                    if deadline <= state.now {
+                        return 2
+                    }
                     state.sleepers[id] = Sleeper(deadline: deadline, continuation: continuation)
                     return 0
                 }
-                if outcome == 1 { continuation.resume(throwing: CancellationError()) }
-                if outcome == 2 { continuation.resume() }
+                if outcome == 1 {
+                    continuation.resume(throwing: CancellationError())
+                }
+                if outcome == 2 {
+                    continuation.resume()
+                }
             }
         } onCancel: {
             let sleeper = state.withLock { $0.sleepers.removeValue(forKey: id) }

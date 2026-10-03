@@ -25,7 +25,10 @@ jobs:
         run: swift --version
 
       - name: Lint
-        run: swift format lint --strict --recursive Package.swift Sources Tests
+        run: |
+          swift format lint --strict --recursive Package.swift Sources Tests Scripts/MultilineConditionalBodies.swift
+          Scripts/check-multiline-conditionals.sh --self-test
+          Scripts/check-multiline-conditionals.sh
 
       - name: Build
         run: swift build

@@ -63,7 +63,9 @@ class StubURLProtocol: URLProtocol {
                 return
             }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            if !stub.body.isEmpty { client?.urlProtocol(self, didLoad: stub.body) }
+            if !stub.body.isEmpty {
+                client?.urlProtocol(self, didLoad: stub.body)
+            }
             client?.urlProtocolDidFinishLoading(self)
         } catch {
             client?.urlProtocol(self, didFailWithError: error)
@@ -88,7 +90,9 @@ class StubURLProtocol: URLProtocol {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
             let count = stream.read(&buffer, maxLength: buffer.count)
-            guard count > 0 else { break }
+            guard count > 0 else {
+                break
+            }
             data.append(buffer, count: count)
         }
         return data

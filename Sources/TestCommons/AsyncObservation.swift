@@ -32,9 +32,13 @@ public func waitUntil<Value: Sendable>(
         try Task.checkCancellation()
         let value = try await operation()
         try Task.checkCancellation()
-        if predicate(value) { return value }
+        if predicate(value) {
+            return value
+        }
         let remaining = clock.now.duration(to: deadline)
-        guard remaining > .zero else { throw ObservationTimeout(lastObservation: value) }
+        guard remaining > .zero else {
+            throw ObservationTimeout(lastObservation: value)
+        }
         try await clock.sleep(for: min(pollInterval, remaining))
     }
 }

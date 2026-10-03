@@ -32,7 +32,9 @@ public enum FrameGeometry {
     ///   - tolerance: The finite, nonnegative outward margin in points.
     /// - Returns: Whether valid frames satisfy containment within the margin.
     public static func contains(_ child: CGRect, in container: CGRect, tolerance: CGFloat = 0) -> Bool {
-        guard isUsable(child), isUsable(container), tolerance.isFinite, tolerance >= 0 else { return false }
+        guard isUsable(child), isUsable(container), tolerance.isFinite, tolerance >= 0 else {
+            return false
+        }
         let expanded = container.insetBy(dx: -tolerance, dy: -tolerance)
         return isUsable(expanded) && expanded.contains(child)
     }
@@ -53,7 +55,9 @@ public enum FrameGeometry {
     ///   - tolerance: The finite, positive maximum center difference in points.
     /// - Returns: Whether valid frames have horizontal centers within the tolerance.
     public static func horizontallyAligned(_ first: CGRect, _ second: CGRect, tolerance: CGFloat = 1) -> Bool {
-        guard isUsable(first), isUsable(second), tolerance.isFinite, tolerance > 0 else { return false }
+        guard isUsable(first), isUsable(second), tolerance.isFinite, tolerance > 0 else {
+            return false
+        }
         return abs(first.midX - second.midX) < tolerance
     }
     /// Returns the horizontal edge separation of two valid frames, regardless of direction.
@@ -62,7 +66,9 @@ public enum FrameGeometry {
     ///   - second: The other frame in the same coordinate space.
     /// - Returns: A nonnegative gap, zero for overlapping horizontal spans, or nil for invalid frames.
     public static func horizontalGap(between first: CGRect, and second: CGRect) -> CGFloat? {
-        guard isUsable(first), isUsable(second) else { return nil }
+        guard isUsable(first), isUsable(second) else {
+            return nil
+        }
         return max(0, max(first.minX, second.minX) - min(first.maxX, second.maxX))
     }
 

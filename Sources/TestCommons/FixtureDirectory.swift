@@ -22,7 +22,9 @@ public struct FixtureDirectory: Sendable {
     ///   - subdirectory: An optional folder below its resource root.
     /// - Throws: A file-system error when the bundle has no resource root.
     public init(bundle: Bundle, subdirectory: String? = nil) throws {
-        guard let root = bundle.resourceURL else { throw CocoaError(.fileNoSuchFile) }
+        guard let root = bundle.resourceURL else {
+            throw CocoaError(.fileNoSuchFile)
+        }
         self.root = subdirectory.map { root.appendingPathComponent($0, isDirectory: true) } ?? root
     }
 
