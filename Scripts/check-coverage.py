@@ -117,6 +117,11 @@ def changed_lines(base):
             match = re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)
             start, length = int(match.group(1)), int(match.group(2) or "1")
             current.update(range(start, start + length))
+    # New files that are not yet tracked are entirely changed when checking locally.
+    untracked = run(["git", "ls-files", "--others", "--exclude-standard", "--", "Sources"])
+    for name in untracked.splitlines():
+        path = (ROOT / name).resolve()
+        changes[path] = set(range(1, len(path.read_text().splitlines()) + 1))
     return changes
 
 
