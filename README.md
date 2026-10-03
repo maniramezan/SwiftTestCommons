@@ -153,6 +153,22 @@ open .build/documentation/Build/Products/Debug-iphonesimulator/TestCommons.docca
 open .build/documentation/Build/Products/Debug-iphonesimulator/TestCommonsXCUI.doccarchive
 ```
 
+## Test coverage
+
+CI runs the tests with coverage and fails the pull request when either check misses:
+
+```sh
+swift test --enable-code-coverage
+python3 Scripts/check-coverage.py --diff-base origin/main
+```
+
+- Each product keeps a line-coverage floor (`TARGET_THRESHOLDS` in the script). Floors only go up.
+- At least 90% of executable lines changed since the merge base must be covered. In GitHub
+  Actions, each uncovered changed line is annotated on the pull request.
+
+`TestCommonsXCUI` is exempt from the changed-line check because its `XCUIElement` waits need a
+UI-test host. Keep its floor rising by moving pure logic into internal functions with unit tests.
+
 ## Conventions
 
 Conventional Commits drive automated tagging and GitHub Releases (see `.github/workflows/release.yml`).

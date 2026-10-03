@@ -34,7 +34,10 @@ jobs:
         run: xcodebuild docbuild -scheme TestCommons -destination 'generic/platform=macOS'
 
       - name: Test
-        run: swift test
+        run: swift test --enable-code-coverage
+
+      - name: Check coverage
+        run: python3 Scripts/check-coverage.py --diff-base "origin/${{ github.base_ref || 'main' }}"
 
       - name: Build and validate DocC documentation
         run: python3 Scripts/build-documentation.py

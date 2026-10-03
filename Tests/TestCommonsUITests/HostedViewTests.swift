@@ -21,5 +21,18 @@
             #expect(filled.renderPNG() == nil)
             #expect(!filled.waitForStableRender(timeout: 0))
         }
+
+        @Test func callerOwnedViewsRenderAndStabilize() throws {
+            let hosted = HostedView(Color.blue, size: CGSize(width: 24, height: 24))
+            defer { hosted.close() }
+            #if canImport(AppKit)
+                let view: RenderableView = hosted.hosting
+            #else
+                let view: RenderableView = hosted.hosting.view
+            #endif
+            #expect(ViewRendering.pngData(of: view) != nil)
+            #expect(ViewRendering.waitForStableRender(view, timeout: 2, minimumFrames: 2, requiredStableFrames: 2))
+            #expect(!ViewRendering.waitForStableRender(view, timeout: 0))
+        }
     }
 #endif

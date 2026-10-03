@@ -69,6 +69,40 @@ struct AsyncHelpersTests {
         }
     }
 
+    @Test func throwingStreamCollectsUntilItsLimit() async throws {
+        let stream = AsyncThrowingStream<Int, any Error> {
+            $0.yield(1); $0.yield(2); $0.finish()
+        }
+        let result = try await observeStream(stream, maxCount: 1, timeout: .seconds(2))
+        #expect(result.values == [1])
+        #expect(result.end == .limitReached)
+    }
+
+    @Test func timeoutFinishesTheSourceButLimitsDoNot() async throws {
+        let (stream, continuation) = AsyncStream<Int>.makeStream()
+        defer { continuation.finish() }
+        continuation.yield(1)
+        #expect(try await observeStream(stream, maxCount: 1, timeout: .seconds(2)).end == .limitReached)
+        continuation.yield(2)
+        #expect(try await observeStream(stream, maxCount: 1, timeout: .seconds(2)).values == [2])
+        #expect(try await observeStream(stream, maxCount: 1, timeout: .milliseconds(20)).end == .timedOut)
+        continuation.yield(3)
+        let afterTimeout = try await observeStream(stream, maxCount: 1, timeout: .seconds(2))
+        #expect(afterTimeout.values.isEmpty)
+        #expect(afterTimeout.end == .finished)
+    }
+
+    @Test func zeroBudgetsConsumeNothing() async throws {
+        let (stream, continuation) = AsyncStream<Int>.makeStream()
+        defer { continuation.finish() }
+        continuation.yield(1)
+        #expect(try await observeStream(stream, maxCount: 0, timeout: .seconds(2)).end == .limitReached)
+        let timedOut = try await observeStream(stream, maxCount: 1, timeout: .zero)
+        #expect(timedOut.values.isEmpty)
+        #expect(timedOut.end == .timedOut)
+        #expect(try await observeStream(stream, maxCount: 1, timeout: .seconds(2)).values == [1])
+    }
+
     @Test func cancelledStreamObservationFinishes() async {
         let (stream, continuation) = AsyncStream<Int>.makeStream()
         defer { continuation.finish() }
@@ -97,6 +131,18 @@ struct AsyncHelpersTests {
         #expect(throws: CocoaError.self) { try fixtures.data(named: "../outside") }
         #expect(throws: CocoaError.self) { try directory.write(Data(), named: "../outside") }
         #expect(throws: CocoaError.self) { try fixtures.data(named: "missing") }
+        #expect(throws: CocoaError.self) { try fixtures.data(named: "") }
+        #expect(throws: CocoaError.self) { try fixtures.data(named: "/etc/hosts") }
+        _ = try directory.write(Data([0xFF, 0xFE, 0xFD]), named: "binary.bin")
+        #expect(throws: CocoaError.self) { try fixtures.text(named: "binary.bin") }
+        #expect(try fixtures.data(named: "binary.bin") == Data([0xFF, 0xFE, 0xFD]))
+    }
+
+    @Test func bundleFixturesResolveBelowTheResourceRoot() throws {
+        let resources = try #require(Bundle.main.resourceURL)
+        #expect(try FixtureDirectory(bundle: .main).root == resources)
+        let nested = try FixtureDirectory(bundle: .main, subdirectory: "Fixtures")
+        #expect(nested.root == resources.appendingPathComponent("Fixtures", isDirectory: true))
     }
 
     @Test func scriptsHaveExplicitExhaustion() throws {
@@ -104,9 +150,14 @@ struct AsyncHelpersTests {
         #expect(try failing.next() == 1)
         #expect(throws: TestError()) { try failing.next() }
         var repeating = ScriptedValues([1, 2], exhaustion: .repeatLast)
+        #expect(repeating.remainingCount == 2)
         #expect(try repeating.next() == 1)
         #expect(try repeating.next() == 2)
+        #expect(repeating.remainingCount == 0)
         #expect(try repeating.next() == 2)
+        #expect(repeating.remainingCount == 0)
+        var emptyRepeating = ScriptedValues<Int>([], exhaustion: .repeatLast)
+        #expect(throws: TestError()) { try emptyRepeating.next() }
         var fallback = ScriptedValues<Int>([], exhaustion: .fallback(3))
         #expect(try fallback.next() == 3)
     }

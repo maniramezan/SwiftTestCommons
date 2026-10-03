@@ -32,6 +32,11 @@ public struct StreamObservation<Element: Sendable>: Sendable {
 ///
 /// Cancels the consumer when time expires. Do not concurrently consume the same
 /// stream elsewhere if every event must be observed here. Zero budgets consume nothing.
+///
+/// A timeout or caller cancellation cancels iteration, which finishes an `AsyncStream`
+/// permanently: later observations of that stream end with `.finished` and events
+/// yielded afterward are dropped. Observations that end by matching or reaching the
+/// limit leave the stream usable.
 /// - Parameters:
 ///   - stream: The stream to consume.
 ///   - maxCount: The nonnegative event budget.
@@ -47,6 +52,9 @@ public func observeStream<Element: Sendable>(
 }
 
 /// Observes a throwing stream with an event budget and a monotonic deadline.
+///
+/// As with the non-throwing overload, a timeout or caller cancellation finishes the
+/// stream; only observations that match or reach the limit leave it usable.
 /// - Parameters:
 ///   - stream: The stream to consume; source failures propagate unchanged.
 ///   - maxCount: The nonnegative event budget.

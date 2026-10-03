@@ -31,14 +31,18 @@
     ///   - locale: The locale identifier used in `AppleLocale`.
     @MainActor
     public func configureLocale(of app: XCUIApplication, language: String, locale: String) {
-        var arguments = app.launchArguments
+        app.launchArguments = localeLaunchArguments(app.launchArguments, language: language, locale: locale)
+    }
+
+    func localeLaunchArguments(_ arguments: [String], language: String, locale: String) -> [String] {
+        var arguments = arguments
         for key in ["-AppleLanguages", "-AppleLocale"] {
             while let index = arguments.firstIndex(of: key) {
                 arguments.remove(at: index)
                 if index < arguments.count { arguments.remove(at: index) }
             }
         }
-        app.launchArguments = arguments + ["-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+        return arguments + ["-AppleLanguages", "(\(language))", "-AppleLocale", locale]
     }
 
     /// Returns the sole currently hittable match, reporting ambiguous queries.
@@ -94,8 +98,13 @@
             element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
         }
         if !text.isEmpty { element.typeText(text) }
-        let elapsed = start.duration(to: .now).components
-        let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
-        return waitForValue(text, on: element, timeout: max(0, timeout - seconds), file: file, line: line)
+        let remaining = remainingTimeout(timeout, elapsed: start.duration(to: .now))
+        return waitForValue(text, on: element, timeout: remaining, file: file, line: line)
+    }
+
+    func remainingTimeout(_ timeout: TimeInterval, elapsed: Duration) -> TimeInterval {
+        let components = elapsed.components
+        let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
+        return max(0, timeout - seconds)
     }
 #endif
