@@ -45,4 +45,4 @@ Keep application launch configuration and accessibility identifiers in your own 
 - ``attachDiagnostics(of:to:named:lifetime:)``
 - ``configureLocale(of:language:locale:)``
 - ``uniqueHittableElement(in:file:line:)``
-- ``replaceText(in:with:caretOffset:timeout:file:line:)``
+- ``replaceText(in:with:caretOffset:timeout:named:file:line:)``
