@@ -175,20 +175,28 @@ owning test bundle instead of scanning all bundles to avoid filename collisions.
 directories are searched in the supplied order; `directoryName:` customizes `__Snapshots__`.
 This helper does not depend on a snapshot library or choose recording/toolchain policy.
 
-## Hosted SwiftUI views
+## Rendering SwiftUI views
 
-`TestCommonsUI.HostedView` owns a platform hierarchy, renders PNG bytes, waits for
-stable rendered frames, and compares against a caller-supplied blank reference:
+`TestCommonsUI.ViewRendering.pngData(rendering:size:scale:)` renders SwiftUI content offscreen,
+with no window or host application, at a fixed scale (default 1) so bytes match across devices:
 
 ```swift
-let hosted = HostedView(Text("Ready"), size: CGSize(width: 200, height: 100))
+let png = ViewRendering.pngData(rendering: Text("Ready"), size: CGSize(width: 200, height: 100))
+```
+
+`HostedView` owns a real platform window for platform-backed controls and lazy containers. It
+renders PNG bytes, waits for stable frames, and compares against a caller-supplied blank reference:
+
+```swift
+let hosted = HostedView(Text("Ready"), size: CGSize(width: 200, height: 100), scale: 2)
 defer { hosted.close() }
-_ = hosted.waitForStableRender()
+_ = hosted.waitForStableRender(timeout: .seconds(2))
 let png = hosted.renderPNG()
 ```
 
-Call `close()` explicitly, normally in `defer`. Stable pixels do not establish content
-arrival. Serialize suites that pump the main run loop.
+On iOS, hosted rendering needs a test target with a host app; in hostless package tests it
+returns `nil` instead of blank bytes. Stable pixels do not establish content arrival.
+Serialize suites that pump the main run loop.
 
 ## UI tests
 
