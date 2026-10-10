@@ -36,10 +36,13 @@ jobs:
   release:
     name: Tag and publish GitHub Release
     runs-on: ubuntu-latest
-    # Only proceed on a manual run, or when the gating CI run actually succeeded.
+    # Only proceed on a manual run, or when CI succeeded for a push to main. The
+    # workflow_run branch filter matches the head branch name, so a fork's pull
+    # request from its own `main` would otherwise pass and tag an unmerged commit.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
