@@ -7,6 +7,7 @@
 /// - ``next()``
 /// - ``remainingCount``
 /// - ``Exhaustion``
+/// - ``Exhausted``
 public struct ScriptedValues<Value: Sendable>: Sendable {
     /// Behavior after all supplied values have been consumed.
     ///
@@ -15,13 +16,26 @@ public struct ScriptedValues<Value: Sendable>: Sendable {
     /// - ``repeatLast``
     /// - ``fallback(_:)``
     public enum Exhaustion: Sendable {
-        /// Throw `TestError` when exhausted.
+        /// Throw ``ScriptedValues/Exhausted`` when exhausted.
         case fail
-        /// Repeat the last supplied value; an empty script throws `TestError`.
+        /// Repeat the last supplied value; an empty script throws ``ScriptedValues/Exhausted``.
         case repeatLast
         /// Return the supplied fallback after exhaustion.
         case fallback(Value)
     }
+
+    /// Thrown when a script runs out of values and its policy supplies no replacement.
+    ///
+    /// Distinct from errors your test scripts or expects, such as `TestError`, so an
+    /// unexpected extra call cannot satisfy an expected failure.
+    ///
+    /// ## Topics
+    /// - ``consumedCount``
+    public struct Exhausted: Error, Equatable {
+        /// The number of values the script supplied before running out.
+        public let consumedCount: Int
+    }
+
     private let values: [Value]
     private let exhaustion: Exhaustion
     private var index = 0
@@ -40,17 +54,17 @@ public struct ScriptedValues<Value: Sendable>: Sendable {
 
     /// Consumes the next value or applies the exhaustion policy.
     /// - Returns: The next value, repeated last value, or fallback.
-    /// - Throws: `TestError` when exhausted without a usable replacement.
+    /// - Throws: ``Exhausted`` when exhausted without a usable replacement.
     public mutating func next() throws -> Value {
         if index < values.count {
             defer { index += 1 }
             return values[index]
         }
         switch exhaustion {
-        case .fail: throw TestError()
+        case .fail: throw Exhausted(consumedCount: values.count)
         case .repeatLast:
             guard let last = values.last else {
-                throw TestError()
+                throw Exhausted(consumedCount: 0)
             }
             return last
         case .fallback(let value): return value

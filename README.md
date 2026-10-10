@@ -113,8 +113,9 @@ let client = APIClient(session: stub.session)
 `advance(to:)`. Wait with `waitForSleepers(_:)` before advancing.
 
 `ScriptedValues` supplies deterministic sequences of dates, UUIDs, or any other sendable
-fixtures, with fail, repeat-last, and fallback exhaustion policies. Own mutable scripts in
-an actor or a `TestValueBox` when sharing them.
+fixtures, with fail, repeat-last, and fallback exhaustion policies. Running out throws
+`ScriptedValues.Exhausted`, never `TestError`. Own mutable scripts in an actor or a
+`TestValueBox` when sharing them.
 
 ## Async coordination
 
