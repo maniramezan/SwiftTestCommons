@@ -128,8 +128,8 @@ observation. Observation closures must return promptly and cooperate with cancel
 let count = try await waitUntil(timeout: .seconds(2)) { await model.count } matching: { $0 >= 3 }
 ```
 
-`observeStream` supports `AsyncStream` and `AsyncThrowingStream`, with both a time
-budget and event budget. It returns collected events with a matched, finished,
+`observeStream` consumes any sendable `AsyncSequence`, with both a time budget and an
+event budget. It returns collected events with a matched, finished,
 limit-reached, or timed-out outcome. Source errors and caller cancellation propagate.
 A count limit alone cannot prevent a stalled stream from hanging.
 

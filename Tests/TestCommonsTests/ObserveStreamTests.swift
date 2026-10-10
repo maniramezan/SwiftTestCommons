@@ -12,6 +12,23 @@ struct ObserveStreamTests {
         #expect(result.end == .timedOut)
     }
 
+    @Test func anySendableSequenceCanBeObserved() async throws {
+        struct Countdown: AsyncSequence, Sendable {
+            struct AsyncIterator: AsyncIteratorProtocol {
+                var remaining: Int
+                mutating func next() async -> Int? {
+                    guard remaining > 0 else { return nil }
+                    defer { remaining -= 1 }
+                    return remaining
+                }
+            }
+            func makeAsyncIterator() -> AsyncIterator { AsyncIterator(remaining: 3) }
+        }
+        let result = try await observeStream(Countdown(), maxCount: 5, timeout: .seconds(2))
+        #expect(result.values == [3, 2, 1])
+        #expect(result.end == .finished)
+    }
+
     @Test func streamsDistinguishFinishLimitAndMatch() async throws {
         func stream() -> AsyncStream<Int> {
             AsyncStream {
