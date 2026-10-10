@@ -111,5 +111,32 @@ Wait for the sleep to register with ``ManualClock/waitForSleepers(_:timeout:)`` 
 advancing: advancing first does not wake a sleep that starts later. Cancelling a
 sleeping task removes only that sleeper.
 
+An advance moves time straight to its target. Code that wakes and sleeps again, such as a
+retry or polling loop, measures its next deadline from the new time, so advancing five
+seconds runs one iteration of a one-second loop, not five. Step through each iteration:
+
+```swift
+import Testing
+import TestCommons
+
+@Test func checkPollingLoop() async throws {
+    let clock = ManualClock()
+    let ticks = TestValueBox(0)
+    let poller = Task {
+        for _ in 0..<3 {
+            try await clock.sleep(for: .seconds(1))
+            ticks.withValue { $0 += 1 }
+        }
+    }
+
+    for _ in 0..<3 {
+        try await clock.waitForSleepers(1)
+        clock.advance(by: .seconds(1))
+    }
+    try await poller.value
+    #expect(ticks.get() == 3)
+}
+```
+
 The `async let` child tasks are cancelled and awaited when their scope exits, including
 when an observation times out or the test is cancelled.
