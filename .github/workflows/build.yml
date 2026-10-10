@@ -45,6 +45,16 @@ jobs:
       - name: Build XCUITest helpers for iOS
         run: xcodebuild -scheme TestCommonsXCUI -destination 'generic/platform=iOS Simulator' build
 
+      # The UIKit rendering paths only run on iOS; macOS tests exercise AppKit.
+      - name: Test SwiftUI rendering on iOS Simulator
+        run: |
+          device="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime, entries in devices.items() if "iOS" in runtime
+                     for d in entries if d["name"].startswith("iPhone")))')"
+          xcodebuild test -scheme TestCommons-Package -destination "id=$device" -only-testing:TestCommonsUITests
+
   linux:
     name: Linux core build and tests
     runs-on: ubuntu-latest
