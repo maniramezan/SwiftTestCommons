@@ -33,9 +33,7 @@ public struct FixtureDirectory: Sendable {
     /// - Returns: The fixture contents.
     /// - Throws: A file-system error, including missing fixtures or invalid paths.
     public func data(named name: String) throws -> Data {
-        let base = root.standardizedFileURL.resolvingSymlinksInPath()
-        let file = base.appendingPathComponent(name).standardizedFileURL.resolvingSymlinksInPath()
-        guard !name.isEmpty, !name.hasPrefix("/"), file.path.hasPrefix(base.path + "/") else {
+        guard let file = containedFileURL(name, in: root) else {
             throw CocoaError(.fileReadInvalidFileName)
         }
         return try Data(contentsOf: file)

@@ -43,9 +43,7 @@ public struct TemporaryDirectory: Sendable {
     /// - Returns: The new file URL.
     /// - Throws: A file-system error or an invalid relative-path error.
     public func write(_ data: Data, named name: String) throws -> URL {
-        let base = url.standardizedFileURL.resolvingSymlinksInPath()
-        let file = base.appendingPathComponent(name).standardizedFileURL.resolvingSymlinksInPath()
-        guard !name.isEmpty, !name.hasPrefix("/"), file.path.hasPrefix(base.path + "/") else {
+        guard let file = containedFileURL(name, in: url) else {
             throw CocoaError(.fileWriteInvalidFileName)
         }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
