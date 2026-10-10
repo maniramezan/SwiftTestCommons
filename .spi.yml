@@ -1,0 +1,6 @@
+version: 1
+builder:
+  configs:
+    # Match Scripts/build-documentation.py, which builds the archives for iOS.
+    - platform: ios
+      documentation_targets: [TestCommons, TestCommonsUI, TestCommonsXCUI]
