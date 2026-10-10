@@ -13,8 +13,11 @@
 /// - ``values()``
 /// - ``lastValue()``
 /// - ``count``
-/// - ``waitForCount(_:timeout:)``
+/// - ``waitForCalls(_:timeout:)``
 /// - ``reset()``
+///
+/// ### Deprecated
+/// - ``waitForCount(_:timeout:)``
 public actor CallRecorder<Value: Sendable> {
     private var recordedValues: [Value] = []
 
@@ -34,16 +37,28 @@ public actor CallRecorder<Value: Sendable> {
     /// Clears the current history; pending count waits observe the new history.
     public func reset() { recordedValues.removeAll() }
 
+    /// Waits in real time until at least `count` calls have been recorded.
+    /// - Parameters:
+    ///   - count: The nonnegative minimum call count.
+    ///   - timeout: The total monotonic wait budget.
+    /// - Returns: A snapshot containing at least `count` calls.
+    /// - Throws: ``ObservationTimeout`` with the last history, or cancellation.
+    public func waitForCalls(_ count: Int, timeout: Duration = .seconds(2)) async throws -> [Value] {
+        precondition(count >= 0)
+        return try await waitUntil(
+            timeout: timeout, pollInterval: .milliseconds(1),
+            operation: { await self.values() }, matching: { $0.count >= count })
+    }
+
     /// Waits for at least the requested number of calls and returns the history.
     /// - Parameters:
     ///   - count: The nonnegative minimum call count.
     ///   - timeout: The total monotonic wait budget.
     /// - Returns: A snapshot containing at least `count` calls.
     /// - Throws: Cancellation or `ObservationTimeout` containing the last history.
+    @available(*, deprecated, renamed: "waitForCalls(_:timeout:)")
     public func waitForCount(_ count: Int, timeout: Duration) async throws -> [Value] {
-        precondition(count >= 0)
-        return try await waitUntil(
-            timeout: timeout, operation: { await self.values() }, matching: { $0.count >= count })
+        try await waitForCalls(count, timeout: timeout)
     }
 
     /// Returns a snapshot of all recorded values in arrival order.

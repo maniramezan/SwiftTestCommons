@@ -31,11 +31,21 @@ struct CallRecorderTests {
 
     @Test func recorderWaitsAndResets() async throws {
         let recorder = CallRecorder<Int>()
-        let waiting = Task { try await recorder.waitForCount(2, timeout: .seconds(2)) }
+        let waiting = Task { try await recorder.waitForCalls(2) }
         await recorder.record(1)
         await recorder.record(2)
         #expect(try await waiting.value == [1, 2])
         await recorder.reset()
         #expect(await recorder.count == 0)
+    }
+
+    @available(*, deprecated)
+    @Test func deprecatedCountWaitForwards() async throws {
+        let recorder = CallRecorder<Int>()
+        await recorder.record(1)
+        #expect(try await recorder.waitForCount(1, timeout: .seconds(2)) == [1])
+        await #expect(throws: ObservationTimeout<[Int]>.self) {
+            try await recorder.waitForCount(2, timeout: .milliseconds(10))
+        }
     }
 }
