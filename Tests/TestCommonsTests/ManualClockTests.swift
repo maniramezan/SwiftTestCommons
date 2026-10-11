@@ -99,6 +99,30 @@ struct ManualClockTests {
         }
     }
 
+    @Test func oneAdvanceRunsOneIterationOfASleepLoop() async throws {
+        let clock = ManualClock()
+        let ticks = TestValueBox(0)
+        let poller = Task {
+            for _ in 0..<3 {
+                try await clock.sleep(for: .seconds(1))
+                ticks.withValue { $0 += 1 }
+            }
+        }
+        try await clock.waitForSleepers(1)
+        clock.advance(by: .seconds(5))
+        // The loop's next sleep is measured from the new time, so it waits for a later advance.
+        try await clock.waitForSleepers(1)
+        #expect(ticks.get() == 1)
+        #expect(clock.now.offset == .seconds(5))
+
+        for _ in 0..<2 {
+            try await clock.waitForSleepers(1)
+            clock.advance(by: .seconds(1))
+        }
+        try await poller.value
+        #expect(ticks.get() == 3)
+    }
+
     @Test func instantsMeasureManualTime() {
         let start = ManualClock.Instant(offset: .seconds(1))
         let later = start.advanced(by: .milliseconds(500))

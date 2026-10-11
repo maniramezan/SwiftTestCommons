@@ -4,12 +4,18 @@ import Synchronization
 /// A clock whose time advances only when a test calls ``advance(by:)`` or ``advance(to:)``.
 ///
 /// Inject it wherever code accepts `some Clock<Duration>` to make debouncing, retries,
-/// and timeouts deterministic. Sleepers resume in deadline order once time reaches
-/// their deadline. Cancelling a sleeping task removes only that sleeper and throws
-/// `CancellationError`; no task is created to deliver cancellation.
+/// and timeouts deterministic. Advancing resumes every sleeper whose deadline has been
+/// reached, in deadline order; the resumed tasks then run concurrently, so the order in
+/// which they execute is not guaranteed. Cancelling a sleeping task removes only that
+/// sleeper and throws `CancellationError`; no task is created to deliver cancellation.
 ///
 /// Start the code under test, wait for it to suspend with ``waitForSleepers(_:timeout:)``,
 /// then advance. Advancing before a sleep registers does not wake it later.
+///
+/// Each advance moves time directly to its target. A task that wakes and sleeps again
+/// measures its next deadline from the new ``now``, so one large advance does not run
+/// several iterations of a sleep loop. To drive a loop that sleeps one second three
+/// times, advance one second at a time and wait for the sleeper before each advance.
 ///
 /// ## Topics
 ///
@@ -120,6 +126,8 @@ public final class ManualClock: Clock, Sendable {
     }
 
     /// Advances manual time and resumes every sleeper whose deadline has been reached.
+    ///
+    /// Time moves directly to the target; sleeps registered by resumed tasks start from it.
     /// - Parameter duration: A nonnegative amount of manual time.
     public func advance(by duration: Duration) {
         precondition(duration >= .zero, "ManualClock cannot move backward")
