@@ -113,8 +113,9 @@ let client = APIClient(session: stub.session)
 `advance(to:)`. Wait with `waitForSleepers(_:)` before advancing.
 
 `ScriptedValues` supplies deterministic sequences of dates, UUIDs, or any other sendable
-fixtures, with fail, repeat-last, and fallback exhaustion policies. Own mutable scripts in
-an actor or a `TestValueBox` when sharing them.
+fixtures, with fail, repeat-last, and fallback exhaustion policies. Running out throws
+`ScriptedValues.Exhausted`, never `TestError`. Own mutable scripts in an actor or a
+`TestValueBox` when sharing them.
 
 ## Async coordination
 
@@ -128,8 +129,8 @@ observation. Observation closures must return promptly and cooperate with cancel
 let count = try await waitUntil(timeout: .seconds(2)) { await model.count } matching: { $0 >= 3 }
 ```
 
-`observeStream` supports `AsyncStream` and `AsyncThrowingStream`, with both a time
-budget and event budget. It returns collected events with a matched, finished,
+`observeStream` consumes any sendable `AsyncSequence`, with both a time budget and an
+event budget. It returns collected events with a matched, finished,
 limit-reached, or timed-out outcome. Source errors and caller cancellation propagate.
 A count limit alone cannot prevent a stalled stream from hanging.
 
