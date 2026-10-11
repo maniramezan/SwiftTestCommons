@@ -11,8 +11,12 @@
     ///
     /// Call `close()` when finished. Tests pumping the main run loop should be serialized.
     ///
+    /// On iOS, SwiftUI builds a hosted hierarchy only in a test target with a host
+    /// application. In a hostless package test bundle, renders return nil; use
+    /// ``ViewRendering/pngData(rendering:size:scale:)`` there instead.
+    ///
     /// ## Topics
-    /// - ``init(_:size:visible:)``
+    /// - ``init(_:size:visible:scale:)``
     /// - ``hosting``
     /// - ``window``
     /// - ``close()``
@@ -32,6 +36,7 @@
             /// The owned platform window; use `close()` for coordinated cleanup.
             public let window: UIWindow
         #endif
+        private let scale: CGFloat?
         private var closed = false
 
         /// Creates a window hosting the view and performs its initial layout.
@@ -39,8 +44,12 @@
         ///   - content: The view to render, including any required environment values.
         ///   - size: A finite, positive render size in points.
         ///   - visible: Whether to show the window; lazy content may require visibility.
-        public init(_ content: Content, size: CGSize, visible: Bool = true) {
+        ///   - scale: The finite, positive pixels-per-point factor for renders, or nil for
+        ///     the display's scale. Pass a fixed value to compare renders across devices.
+        public init(_ content: Content, size: CGSize, visible: Bool = true, scale: CGFloat? = nil) {
             precondition(size.width.isFinite && size.height.isFinite && size.width > 0 && size.height > 0)
+            precondition(scale.map { $0.isFinite && $0 > 0 } ?? true)
+            self.scale = scale
             #if canImport(AppKit)
                 hosting = NSHostingView(rootView: content)
                 hosting.frame = CGRect(origin: .zero, size: size)
@@ -55,7 +64,13 @@
             #elseif canImport(UIKit)
                 hosting = UIHostingController(rootView: content)
                 hosting.view.frame = CGRect(origin: .zero, size: size)
-                window = UIWindow(frame: hosting.view.frame)
+                // In a scene-based host app, a window without a scene is never displayed.
+                if let scene = UIApplication.shared.connectedScenes.lazy.compactMap({ $0 as? UIWindowScene }).first {
+                    window = UIWindow(windowScene: scene)
+                    window.frame = hosting.view.frame
+                } else {
+                    window = UIWindow(frame: hosting.view.frame)
+                }
                 window.rootViewController = hosting
                 window.isHidden = !visible
                 hosting.view.setNeedsLayout()
@@ -76,15 +91,15 @@
             #endif
         }
 
-        /// Performs layout and captures the current rendered frame.
+        /// Performs layout and captures the current rendered frame at the configured scale.
         /// - Returns: PNG bytes, or nil when closed or rendering is unavailable.
         public func renderPNG() -> Data? {
             guard !closed else { return nil }
             #if canImport(AppKit)
                 window.layoutIfNeeded()
-                return ViewRendering.pngData(of: hosting)
+                return ViewRendering.pngData(of: hosting, scale: scale)
             #elseif canImport(UIKit)
-                return ViewRendering.pngData(of: hosting.view)
+                return ViewRendering.pngData(of: hosting.view, scale: scale)
             #endif
         }
 
@@ -103,14 +118,14 @@
         /// Stability does not establish that content arrived; compare with a blank reference
         /// separately. Animated views may never stabilize. Other main-actor tests can interleave.
         /// - Parameters:
-        ///   - timeout: The nonnegative monotonic time budget in seconds.
+        ///   - timeout: The nonnegative monotonic time budget.
         ///   - minimumFrames: The positive number of samples required before success.
         ///   - requiredStableFrames: The positive number of consecutive identical frames.
-        ///   - pollInterval: The finite, positive interval between samples in seconds.
+        ///   - pollInterval: The positive interval between samples.
         /// - Returns: Whether a nonnil render stabilized before the deadline.
         public func waitForStableRender(
-            timeout: TimeInterval = 5, minimumFrames: Int = 8,
-            requiredStableFrames: Int = 4, pollInterval: TimeInterval = 1.0 / 60
+            timeout: Duration = .seconds(5), minimumFrames: Int = 8,
+            requiredStableFrames: Int = 4, pollInterval: Duration = .seconds(1.0 / 60)
         ) -> Bool {
             guard !closed else { return false }
             return observeStableFrames(
