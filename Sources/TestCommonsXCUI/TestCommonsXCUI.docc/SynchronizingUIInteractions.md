@@ -111,3 +111,11 @@ func checkHorizontalOrder(_ first: XCUIElement, _ second: XCUIElement) {
     )
 }
 ```
+
+For adaptive layouts with multiple panes, call
+``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollVerticallyUntilHittable(_:maxAttempts:)``
+on the application or a common ancestor of the target. Give the target a unique,
+nonempty accessibility identifier. The helper resolves its owning scroll container
+again before every drag, clips gesture points to the window and keyboard, and
+reverses direction when the target lies above the viewport. Menu elements without
+an exposed scroll container can be used directly as the receiver.
