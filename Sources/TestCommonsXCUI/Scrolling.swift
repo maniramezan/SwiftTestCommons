@@ -46,7 +46,8 @@
         ///
         /// Resolves the smallest scroll view, table, or collection containing the child's
         /// accessibility identifier on every attempt, including after layout changes.
-        /// Falls back to this element for menus that expose no scroll container.
+        /// Falls back to this element for menus or unmaterialized lazy-list children.
+        /// Use the owning scroll container as the receiver when the child may not exist yet.
         /// Gesture points remain within the window and above the software keyboard.
         /// Content above the viewport is revealed with a downward drag.
         ///
@@ -60,13 +61,16 @@
             let app = XCUIApplication()
             for _ in 0..<max(0, maxAttempts) {
                 if child.exists && child.isHittable { return true }
-                guard !child.identifier.isEmpty else { return false }
-                let containers = [XCUIElement.ElementType.scrollView, .table, .collectionView]
-                    .flatMap {
-                        self.descendants(matching: $0).containing(.any, identifier: child.identifier)
-                            .allElementsBoundByIndex
-                    }
-                    .filter { $0.exists && !$0.frame.isEmpty }
+                let identifier = child.exists ? child.identifier : ""
+                let containers =
+                    identifier.isEmpty
+                    ? []
+                    : [XCUIElement.ElementType.scrollView, .table, .collectionView]
+                        .flatMap {
+                            self.descendants(matching: $0).containing(.any, identifier: identifier)
+                                .allElementsBoundByIndex
+                        }
+                        .filter { $0.exists && !$0.frame.isEmpty }
                 let container =
                     containers.min {
                         $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
