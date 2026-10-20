@@ -14,3 +14,4 @@ They do not record an XCTest assertion when the swipe budget is exhausted.
 
 - ``scrollUpUntilHittable(_:maxAttempts:)``
 - ``scrollDownUntilHittable(_:maxAttempts:)``
+- ``scrollVerticallyUntilHittable(_:maxAttempts:)``

@@ -42,6 +42,55 @@
                 isHittable: { child.exists && child.isHittable },
                 swipe: { self.swipeDown() })
         }
+        /// Reveals a child using bounded vertical drags inside its owning scroll container.
+        ///
+        /// Resolves the smallest scroll view, table, or collection containing the child's
+        /// accessibility identifier on every attempt, including after layout changes.
+        /// Falls back to this element for menus or unmaterialized lazy-list children.
+        /// Use the owning scroll container as the receiver when the child may not exist yet.
+        /// Gesture points remain within the window and above the software keyboard.
+        /// Content above the viewport is revealed with a downward drag.
+        ///
+        /// - Parameters:
+        ///   - child: The target with a nonempty, unique accessibility identifier.
+        ///   - maxAttempts: The maximum number of drags; nonpositive values only check readiness.
+        /// - Returns: Whether the child exists and is hittable. Does not record an assertion.
+        @MainActor
+        @discardableResult
+        public func scrollVerticallyUntilHittable(_ child: XCUIElement, maxAttempts: Int) -> Bool {
+            let app = XCUIApplication()
+            for _ in 0..<max(0, maxAttempts) {
+                if child.exists && child.isHittable { return true }
+                let identifier = child.exists ? child.identifier : ""
+                let containers =
+                    identifier.isEmpty
+                    ? []
+                    : [XCUIElement.ElementType.scrollView, .table, .collectionView]
+                        .flatMap {
+                            self.descendants(matching: $0).containing(.any, identifier: identifier)
+                                .allElementsBoundByIndex
+                        }
+                        .filter { $0.exists && !$0.frame.isEmpty }
+                let container =
+                    containers.min {
+                        $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
+                    } ?? self
+                let keyboard = app.keyboards.firstMatch
+                guard
+                    let drag = VerticalScrollDrag(
+                        container: container.frame, window: app.windows.firstMatch.frame,
+                        keyboard: keyboard.exists ? keyboard.frame : nil,
+                        target: child.exists ? child.frame : nil
+                    )
+                else { return false }
+                let origin = container.coordinate(withNormalizedOffset: .zero)
+                origin.withOffset(CGVector(dx: drag.start.x, dy: drag.start.y)).press(
+                    forDuration: VerticalScrollDrag.pressDuration,
+                    thenDragTo: origin.withOffset(CGVector(dx: drag.end.x, dy: drag.end.y)),
+                    withVelocity: .slow, thenHoldForDuration: VerticalScrollDrag.holdDuration)
+            }
+            return child.exists && child.isHittable
+        }
     }
 
     @MainActor
