@@ -44,23 +44,20 @@ struct StubbedURLSessionTests {
         var stubs: [StubbedURLSession] = []
         var releases: [AsyncGate] = []
         defer { stubs.forEach { $0.invalidate() } }
-        var exhausted = false
-        for _ in 0...StubbedURLSession.maximumConcurrentSessions {
-            do {
-                let gate = AsyncGate()
-                let signal = ReleaseSignal(gate: gate)
-                stubs.append(
-                    try StubbedURLSession { _ in
-                        withExtendedLifetime(signal) { StubResponse() }
-                    })
-                releases.append(gate)
-            } catch is StubbedURLSession.PoolExhausted {
-                exhausted = true
-                break
-            }
+        // Earlier tests release their routes asynchronously after invalidation, so wait
+        // for those routes too: the pool is only exhausted once this test owns every slot.
+        while stubs.count < StubbedURLSession.maximumConcurrentSessions {
+            let gate = AsyncGate()
+            let signal = ReleaseSignal(gate: gate)
+            stubs.append(
+                try await StubbedURLSession(waitingForRouteUpTo: .seconds(10)) { _ in
+                    withExtendedLifetime(signal) { StubResponse() }
+                })
+            releases.append(gate)
         }
-        #expect(exhausted)
-        #expect(stubs.count <= StubbedURLSession.maximumConcurrentSessions)
+        #expect(throws: StubbedURLSession.PoolExhausted.self) {
+            try StubbedURLSession { _ in StubResponse() }
+        }
         await #expect(throws: StubbedURLSession.PoolExhausted.self) {
             try await StubbedURLSession(waitingForRouteUpTo: .milliseconds(10)) { _ in StubResponse() }
         }
