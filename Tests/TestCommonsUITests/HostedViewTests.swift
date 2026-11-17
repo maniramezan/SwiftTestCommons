@@ -1,4 +1,4 @@
-#if canImport(SwiftUI)
+#if HOSTING_APPKIT || HOSTING_UIKIT
     import Foundation
     import SwiftUI
     import Testing
@@ -7,7 +7,9 @@
     extension RenderingTests {
         @MainActor
         struct HostedViewTests {
-            #if canImport(AppKit)
+            private struct TestFailure: Error {}
+
+            #if HOSTING_APPKIT
                 @Test func hostedFramesRenderAndClose() throws {
                     let size = CGSize(width: 40, height: 40)
                     let blank = HostedView(Color.clear, size: size)
@@ -23,6 +25,50 @@
                     filled.close()
                     #expect(filled.renderPNG() == nil)
                     #expect(!filled.waitForStableRender(timeout: .zero))
+                }
+
+                @Test func appearanceOverridesReachTheRenderedPixels() throws {
+                    let size = CGSize(width: 40, height: 20)
+                    let light = HostedView(
+                        Color.primary, size: size, scale: 1, appearance: HostedAppearance(colorScheme: .light))
+                    defer { light.close() }
+                    let dark = HostedView(
+                        Color.primary, size: size, scale: 1, appearance: HostedAppearance(colorScheme: .dark))
+                    defer { dark.close() }
+                    #expect(dark.rendersDifferently(from: try #require(light.renderPNG())))
+
+                    let stripes = HStack(spacing: 0) {
+                        Color.red
+                        Color.blue
+                    }
+                    let leftToRight = HostedView(
+                        stripes, size: size, scale: 1, appearance: HostedAppearance(layoutDirection: .leftToRight))
+                    defer { leftToRight.close() }
+                    let rightToLeft = HostedView(
+                        stripes, size: size, scale: 1,
+                        appearance: HostedAppearance(layoutDirection: .rightToLeft, dynamicTypeSize: .large))
+                    defer { rightToLeft.close() }
+                    #expect(rightToLeft.rendersDifferently(from: try #require(leftToRight.renderPNG())))
+                }
+
+                @Test func fittingWidthUsesTheIdealHeight() throws {
+                    let hosted = try #require(
+                        HostedView(Color.red.frame(height: 30), fittingWidth: 50, scale: 1))
+                    defer { hosted.close() }
+                    #expect(hosted.window.frame.size == CGSize(width: 50, height: 30))
+                    #expect(HostedView(Color.red.frame(height: 0), fittingWidth: 50) == nil)
+                }
+
+                @Test func scopedHostingClosesAfterTheBody() throws {
+                    let size = CGSize(width: 20, height: 20)
+                    let hosted = HostedView.withHostedView(Color.red, size: size, scale: 1) { hosted in
+                        #expect(hosted.renderPNG() != nil)
+                        return hosted
+                    }
+                    #expect(hosted.renderPNG() == nil)
+                    #expect(throws: TestFailure.self) {
+                        try HostedView.withHostedView(Color.red, size: size) { _ in throw TestFailure() }
+                    }
                 }
 
                 @Test(arguments: [1.0, 2.0])

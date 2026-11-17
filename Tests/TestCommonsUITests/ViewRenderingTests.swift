@@ -22,7 +22,7 @@
                 #expect(pngPixelSize(png) == CGSize(width: 50, height: 20))
             }
 
-            #if canImport(AppKit)
+            #if HOSTING_APPKIT
                 @Test func callerOwnedViewsRenderAndStabilize() throws {
                     let hosted = HostedView(Color.blue, size: CGSize(width: 24, height: 24))
                     defer { hosted.close() }
@@ -33,6 +33,9 @@
                     #expect(
                         ViewRendering.waitForStableRender(
                             view, timeout: .seconds(2), minimumFrames: 2, requiredStableFrames: 2))
+                    #expect(
+                        ViewRendering.waitForStableRender(
+                            view, scale: 1, timeout: .seconds(2), minimumFrames: 2, requiredStableFrames: 2))
                     #expect(!ViewRendering.waitForStableRender(view, timeout: .zero))
                 }
 
@@ -40,7 +43,7 @@
                     #expect(ViewRendering.pngData(of: NSView(frame: .zero)) == nil)
                     #expect(ViewRendering.pngData(of: NSView(frame: .zero), scale: 2) == nil)
                 }
-            #else
+            #elseif HOSTING_UIKIT
                 @Test func undrawnHierarchiesDoNotReturnBlankBytes() {
                     let hosted = HostedView(Color.blue, size: CGSize(width: 24, height: 24))
                     defer { hosted.close() }

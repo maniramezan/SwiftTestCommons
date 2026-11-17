@@ -8,6 +8,9 @@ Render SwiftUI content offscreen in any test bundle, or host it in a real window
 platform-backed controls must behave as they do in an app. Stable pixels do not imply
 nonblank content; compare against a caller-owned reference when that distinction matters.
 
+Offscreen rendering works on every Apple platform, including watchOS. Hosting uses AppKit on
+macOS and UIKit on iOS, Mac Catalyst, tvOS, and visionOS.
+
 ```swift
 import SwiftUI
 import TestCommonsUI
@@ -27,6 +30,11 @@ func renderFixture() -> Data? {
 ### Hosting and rendering
 
 - ``HostedView``
+- ``HostedAppearance``
+
+### Comparing renders
+
+- ``RenderComparison``
 
 ### Caller-owned views
 

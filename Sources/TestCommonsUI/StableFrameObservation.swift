@@ -1,4 +1,4 @@
-#if canImport(SwiftUI)
+#if HOSTING_APPKIT || HOSTING_UIKIT
     import Foundation
 
     @MainActor

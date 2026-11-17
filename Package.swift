@@ -2,9 +2,16 @@
 
 import PackageDescription
 
+// Window hosting uses AppKit on macOS and UIKit elsewhere, including Mac Catalyst.
+// watchOS has neither, so only offscreen rendering is available there.
+let hostingSettings: [SwiftSetting] = [
+    .define("HOSTING_APPKIT", .when(platforms: [.macOS])),
+    .define("HOSTING_UIKIT", .when(platforms: [.iOS, .tvOS, .visionOS, .macCatalyst])),
+]
+
 let package = Package(
     name: "TestCommons",
-    platforms: [.macOS(.v15), .iOS(.v18)],
+    platforms: [.macOS(.v15), .iOS(.v18), .tvOS(.v18), .visionOS(.v2), .watchOS(.v11)],
     products: [
         // Helpers with no testing-framework imports. Safe to link into a shipping
         // binary, such as a device-automation tool.
@@ -16,8 +23,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "TestCommons"),
-        .target(name: "TestCommonsUI"),
-        .testTarget(name: "TestCommonsUITests", dependencies: ["TestCommonsUI"]),
+        .target(name: "TestCommonsUI", swiftSettings: hostingSettings),
+        .testTarget(name: "TestCommonsUITests", dependencies: ["TestCommonsUI"], swiftSettings: hostingSettings),
         .target(name: "TestCommonsXCUI", dependencies: ["TestCommons"]),
         .testTarget(name: "TestCommonsTests", dependencies: ["TestCommons"]),
         .testTarget(name: "TestCommonsXCUITests", dependencies: ["TestCommonsXCUI"]),

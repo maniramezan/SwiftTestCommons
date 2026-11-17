@@ -3,9 +3,9 @@
     import ImageIO
     import SwiftUI
     import UniformTypeIdentifiers
-    #if canImport(AppKit)
+    #if HOSTING_APPKIT
         import AppKit
-    #elseif canImport(UIKit)
+    #elseif HOSTING_UIKIT
         import UIKit
     #endif
 
@@ -13,12 +13,13 @@
     ///
     /// Keep views attached to their owning window until observation finishes.
     /// On iOS, platform-view capture needs a test target with a host application;
-    /// use ``pngData(rendering:size:scale:)`` in hostless package tests.
+    /// use ``pngData(rendering:size:scale:)`` in hostless package tests. On watchOS,
+    /// only the offscreen renderer is available.
     ///
     /// ## Topics
     /// - ``pngData(rendering:size:scale:)``
     /// - ``pngData(of:scale:)``
-    /// - ``waitForStableRender(_:timeout:minimumFrames:requiredStableFrames:pollInterval:)``
+    /// - ``waitForStableRender(_:scale:timeout:minimumFrames:requiredStableFrames:pollInterval:)``
     @MainActor
     public enum ViewRendering {
         /// Renders SwiftUI content offscreen with `ImageRenderer`, without a window.
@@ -29,8 +30,8 @@
         /// - Parameters:
         ///   - content: The view to render, including any required environment values.
         ///   - size: A finite, positive frame size in points.
-        ///   - scale: The finite, positive pixels-per-point factor; defaults to 1 so
-        ///     output does not depend on the test device.
+        ///   - scale: The finite, positive pixels-per-point factor; defaults to 1 so the
+        ///     pixel size does not depend on the test device.
         /// - Returns: PNG bytes, or nil when the content cannot be rendered.
         public static func pngData<Content: View>(
             rendering content: Content, size: CGSize, scale: CGFloat = 1
@@ -49,64 +50,78 @@
                 draw(context)
                 image = context.makeImage()
             }
-            return image.flatMap(pngData(of:))
+            return image.flatMap(encodePNG)
         }
 
-        /// Lays out and renders a platform view using the platform's native capture API.
-        /// - Parameters:
-        ///   - view: An attached view whose frame defines the output size.
-        ///   - scale: The finite, positive pixels-per-point factor, or nil for the
-        ///     display's scale. Pass a fixed value to compare renders across devices.
-        /// - Returns: PNG bytes, or nil when the frame cannot be captured. On iOS this is
-        ///   nil when the view is not drawn, such as in a test bundle without a host app.
-        public static func pngData(of view: RenderableView, scale: CGFloat? = nil) -> Data? {
-            precondition(scale.map { $0.isFinite && $0 > 0 } ?? true)
-            #if canImport(AppKit)
-                view.layoutSubtreeIfNeeded()
-                let bounds = view.bounds
-                guard !bounds.isEmpty, let bitmap = bitmap(for: view, in: bounds, scale: scale) else {
-                    return nil
-                }
-                view.cacheDisplay(in: bounds, to: bitmap)
-                return bitmap.representation(using: .png, properties: [:])
-            #elseif canImport(UIKit)
-                view.layoutIfNeeded()
-                guard !view.bounds.isEmpty else { return nil }
-                let format = UIGraphicsImageRendererFormat.preferred()
-                if let scale {
-                    format.scale = scale
-                }
-                var drawn = false
-                let data = UIGraphicsImageRenderer(size: view.bounds.size, format: format).pngData { _ in
-                    drawn = view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
-                }
-                // An undrawn hierarchy still produces valid, blank PNG bytes.
-                return drawn ? data : nil
-            #endif
-        }
+        #if HOSTING_APPKIT || HOSTING_UIKIT
+            /// Lays out and renders a platform view using the platform's native capture API.
+            /// - Parameters:
+            ///   - view: An attached view whose frame defines the output size.
+            ///   - scale: The finite, positive pixels-per-point factor, or nil for the
+            ///     display's scale. Pass a fixed value to compare renders across devices.
+            /// - Returns: PNG bytes, or nil when the frame cannot be captured. On iOS this is
+            ///   nil when the view is not drawn, such as in a test bundle without a host app.
+            public static func pngData(of view: RenderableView, scale: CGFloat? = nil) -> Data? {
+                capture(view, scale: scale).flatMap(encodePNG)
+            }
 
-        /// Pumps the main run loop until consecutive nonnil rendered frames match.
-        ///
-        /// Stable pixels may be blank. Serialize tests that pump this run loop.
-        /// - Parameters:
-        ///   - view: The caller-owned, attached platform view to observe.
-        ///   - timeout: The nonnegative monotonic time budget.
-        ///   - minimumFrames: The positive minimum number of samples.
-        ///   - requiredStableFrames: The positive consecutive identical-frame count.
-        ///   - pollInterval: The positive interval between samples.
-        /// - Returns: Whether pixels stabilized before the deadline.
-        public static func waitForStableRender(
-            _ view: RenderableView, timeout: Duration = .seconds(5),
-            minimumFrames: Int = 8, requiredStableFrames: Int = 4,
-            pollInterval: Duration = .seconds(1.0 / 60)
-        ) -> Bool {
-            observeStableFrames(
-                timeout: timeout, minimumFrames: minimumFrames,
-                requiredStableFrames: requiredStableFrames, pollInterval: pollInterval,
-                render: { pngData(of: view) })
-        }
+            /// Pumps the main run loop until consecutive nonnil rendered frames match.
+            ///
+            /// Frames are compared as raw pixels, without PNG encoding. Stable pixels may be
+            /// blank. Serialize tests that pump this run loop.
+            /// - Parameters:
+            ///   - view: The caller-owned, attached platform view to observe.
+            ///   - scale: The finite, positive pixels-per-point factor for samples, or nil for
+            ///     the display's scale. A scale of 1 samples fastest.
+            ///   - timeout: The nonnegative monotonic time budget.
+            ///   - minimumFrames: The positive minimum number of samples.
+            ///   - requiredStableFrames: The positive consecutive identical-frame count.
+            ///   - pollInterval: The positive interval between samples.
+            /// - Returns: Whether pixels stabilized before the deadline.
+            public static func waitForStableRender(
+                _ view: RenderableView, scale: CGFloat? = nil, timeout: Duration = .seconds(5),
+                minimumFrames: Int = 8, requiredStableFrames: Int = 4,
+                pollInterval: Duration = .seconds(1.0 / 60)
+            ) -> Bool {
+                observeStableFrames(
+                    timeout: timeout, minimumFrames: minimumFrames,
+                    requiredStableFrames: requiredStableFrames, pollInterval: pollInterval,
+                    render: { pixels(of: view, scale: scale) })
+            }
 
-        #if canImport(AppKit)
+            /// Captures the view's raw pixels for cheap frame-to-frame comparison.
+            static func pixels(of view: RenderableView, scale: CGFloat?) -> Data? {
+                capture(view, scale: scale).flatMap { $0.dataProvider?.data as Data? }
+            }
+
+            static func capture(_ view: RenderableView, scale: CGFloat?) -> CGImage? {
+                precondition(scale.map { $0.isFinite && $0 > 0 } ?? true)
+                #if HOSTING_APPKIT
+                    view.layoutSubtreeIfNeeded()
+                    let bounds = view.bounds
+                    guard !bounds.isEmpty, let bitmap = bitmap(for: view, in: bounds, scale: scale) else {
+                        return nil
+                    }
+                    view.cacheDisplay(in: bounds, to: bitmap)
+                    return bitmap.cgImage
+                #else
+                    view.layoutIfNeeded()
+                    guard !view.bounds.isEmpty else { return nil }
+                    let format = UIGraphicsImageRendererFormat.preferred()
+                    if let scale {
+                        format.scale = scale
+                    }
+                    var drawn = false
+                    let image = UIGraphicsImageRenderer(size: view.bounds.size, format: format).image { _ in
+                        drawn = view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+                    }
+                    // An undrawn hierarchy still produces a valid, blank image.
+                    return drawn ? image.cgImage : nil
+                #endif
+            }
+        #endif
+
+        #if HOSTING_APPKIT
             private static func bitmap(for view: NSView, in bounds: CGRect, scale: CGFloat?) -> NSBitmapImageRep? {
                 guard let scale else {
                     return view.bitmapImageRepForCachingDisplay(in: bounds)
@@ -132,7 +147,7 @@
                 space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         }
 
-        private static func pngData(of image: CGImage) -> Data? {
+        private static func encodePNG(_ image: CGImage) -> Data? {
             let data = NSMutableData()
             guard
                 let destination = CGImageDestinationCreateWithData(
