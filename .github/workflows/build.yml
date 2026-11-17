@@ -10,6 +10,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  XCODE_VERSION: '26.6'
+  # Two simulators so every xcodebuild test run fans out across clones.
+  SIMULATOR_A: 'platform=iOS Simulator,name=iPhone 17,OS=latest'
+  SIMULATOR_B: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+
 jobs:
   validate:
     name: Format, Build, Test, and DocC
@@ -23,13 +29,13 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1.7.0
         with:
-          xcode-version: '26.6'
+          xcode-version: ${{ env.XCODE_VERSION }}
 
       - name: Show Swift version
         run: swift --version
 
       - name: Lint
-        run: swift format lint --strict --recursive Package.swift Sources Tests
+        run: swift format lint --strict --recursive Package.swift Sources Tests Integrations
 
       - name: Build
         run: swift build
@@ -43,18 +49,98 @@ jobs:
       - name: Build and validate DocC documentation
         run: python3 Scripts/build-documentation.py
 
-      - name: Build XCUITest helpers for iOS
-        run: xcodebuild -scheme TestCommonsXCUI -destination 'generic/platform=iOS Simulator' build
+  apple-platforms:
+    name: Build for ${{ matrix.name }}
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS
+            destination: 'generic/platform=iOS Simulator'
+          - name: Mac Catalyst
+            destination: 'generic/platform=macOS,variant=Mac Catalyst'
+          - name: tvOS
+            destination: 'generic/platform=tvOS Simulator'
+          - name: visionOS
+            destination: 'generic/platform=visionOS Simulator'
+          - name: watchOS
+            destination: 'generic/platform=watchOS Simulator'
+    steps:
+      - uses: actions/checkout@v7.0.1
 
-      # The UIKit rendering paths only run on iOS; macOS tests exercise AppKit.
-      - name: Test SwiftUI rendering on iOS Simulator
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Build every product
+        run: xcodebuild -scheme TestCommons-Package -destination '${{ matrix.destination }}' build
+
+  ios-tests:
+    name: Package tests on iOS Simulator
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      # macOS covers the AppKit paths; this runs every test target against UIKit.
+      - name: Test
         run: |
-          device="$(xcrun simctl list devices available --json | python3 -c '
-          import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime, entries in devices.items() if "iOS" in runtime
-                     for d in entries if d["name"].startswith("iPhone")))')"
-          xcodebuild test -scheme TestCommons-Package -destination "id=$device" -only-testing:TestCommonsUITests
+          xcodebuild test -scheme TestCommons-Package \
+            -destination "$SIMULATOR_A" -destination "$SIMULATOR_B" \
+            -parallel-testing-enabled YES -parallel-testing-worker-count 2
+
+  ui-tests:
+    name: XCUI helpers against the fixture app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Run UI tests
+        run: |
+          xcodebuild test -project Integrations/UITestHost/UITestHost.xcodeproj -scheme UITestHost \
+            -destination "$SIMULATOR_A" -destination "$SIMULATOR_B" \
+            -parallel-testing-enabled YES -parallel-testing-worker-count 2 \
+            -resultBundlePath UITestHost.xcresult
+
+      - name: Upload result bundle
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: UITestHost.xcresult
+          path: UITestHost.xcresult
+
+  consumer:
+    name: UserDefaultMacro consumer tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Checkout UserDefaultMacro
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: maniramezan/UserDefaultMacro
+          path: .ci/UserDefaultMacro
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Test
+        env:
+          USERDEFAULT_MACRO_PATH: ${{ github.workspace }}/.ci/UserDefaultMacro
+        run: swift test --package-path Integrations/ConsumerTests
 
   linux:
     name: Linux core build and tests
