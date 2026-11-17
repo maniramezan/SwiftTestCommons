@@ -79,8 +79,11 @@ func revealAndTap(_ child: XCUIElement, in container: XCUIElement) {
 }
 ```
 
-Use ``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollDownUntilHittable(_:maxAttempts:)`` for content above the
-viewport. A zero or negative budget checks the current state without swiping.
+Use ``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollDownUntilHittable(_:maxAttempts:velocity:)`` for content above the
+viewport, and the left and right variants for horizontal content. A zero or negative budget
+checks the current state without swiping. Default swipes fling several screens of content and
+can skip past a small target; pass `velocity: .slow` for shorter steps, or use the drag
+helpers below.
 Unlike the wait helpers, scrolling returns `false` on exhaustion without recording
 an assertion. Assert the returned flag when revealing the element is required.
 
@@ -91,6 +94,8 @@ Import `TestCommons` to obtain `ReadingDirection`, and use
 frames in the same coordinate space. The assertion checks valid geometry, row
 alignment, and strict horizontal-center order, and reports both frames on failure.
 Its row tolerance is exclusive; equal horizontal centers fail in either direction.
+``XCTAssertReadingOrder(_:direction:_:rowTolerance:file:line:)`` checks a whole row in
+logical order and names the first offending index.
 
 ```swift
 import XCTest
@@ -112,10 +117,39 @@ func checkHorizontalOrder(_ first: XCUIElement, _ second: XCUIElement) {
 }
 ```
 
+### Reveal a child with short drags
+
 For adaptive layouts with multiple panes, call
-``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollVerticallyUntilHittable(_:maxAttempts:)``
+``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollVerticallyUntilHittable(_:maxAttempts:in:)``
 on the application or a common ancestor of the target. Give the target a unique,
-nonempty accessibility identifier. The helper resolves its owning scroll container
-again before every drag, clips gesture points to the window and keyboard, and
-reverses direction when the target lies above the viewport. Menu elements without
-an exposed scroll container can be used directly as the receiver.
+nonempty accessibility identifier. Before every drag, the helper takes one accessibility
+snapshot, resolves the smallest scroll container holding the identifier, and clips gesture
+points to the window and keyboard. It drags toward a target whose frame lies outside the
+viewport. When the target is not materialized yet, as in a lazy list, it drags forward and
+reverses once content stops moving at the end. Menu elements without an exposed scroll
+container can be used directly as the receiver.
+
+``/TestCommonsXCUI/XCUIAutomation/XCUIElement/scrollHorizontallyUntilHittable(_:maxAttempts:direction:in:)``
+does the same for carousels. Pass `direction: .rightToLeft` when content after the viewport
+lies to the left. Pass `in: app` to either helper when the application was launched by
+bundle identifier, so window and keyboard frames come from that application.
+
+```swift
+import XCTest
+import TestCommonsXCUI
+
+@MainActor
+func revealLastPage(in app: XCUIApplication) -> Bool {
+    let carousel = app.scrollViews["pages"]
+    return carousel.scrollHorizontallyUntilHittable(
+        app.staticTexts["page-12"], maxAttempts: 20, direction: .rightToLeft, in: app)
+}
+```
+
+### Wait for selection, focus, and counts
+
+``waitForSelection(_:timeout:named:file:line:)`` waits for tabs, segments, and rows to report
+selection. ``waitForFocus(_:timeout:named:file:line:)`` waits for keyboard or remote focus,
+such as on macOS and tvOS. ``waitForCount(_:of:timeout:named:file:line:)`` waits for a query
+to match an exact number of elements, for example after inserting a row, and reports the
+count it found.

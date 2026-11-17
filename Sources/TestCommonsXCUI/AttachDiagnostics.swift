@@ -1,4 +1,4 @@
-#if canImport(XCTest) && (os(macOS) || os(iOS))
+#if canImport(XCTest) && (os(macOS) || os(iOS) || os(tvOS) || os(visionOS))
     import XCTest
 
     /// Attaches an application's screenshot and accessibility hierarchy to a test.
