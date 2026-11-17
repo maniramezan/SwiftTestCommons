@@ -32,6 +32,15 @@ class StubURLProtocol: URLProtocol {
     static let releases = ChangeSignal()
     private let loading = Mutex<Task<Void, Never>?>(nil)
 
+    /// Carries the protocol instance into its loading task.
+    ///
+    /// URLProtocol is not Sendable, but URL loading tolerates client callbacks from any
+    /// thread, and `stopLoading` cancels the task before the instance is released. A
+    /// `nonisolated(unsafe)` local is not enough: Swift 6.2 still rejects the capture.
+    private struct UncheckedInstance: @unchecked Sendable {
+        let value: StubURLProtocol
+    }
+
     class var slot: Int { -1 }
 
     static func acquire(owner: UUID, _ handler: @escaping Handler) -> Int? {
@@ -69,21 +78,18 @@ class StubURLProtocol: URLProtocol {
             return
         }
         let request = Self.recordable(request)
-        // URLProtocol is not Sendable, but URL loading tolerates client callbacks from
-        // any thread, and `stopLoading` cancels the task before the instance is released.
-        nonisolated(unsafe) let instance = self
-        loading.withLock { task in
-            task = Task {
-                let outcome: Result<StubResponse, any Error>
-                do {
-                    outcome = .success(try await handler(request))
-                } catch {
-                    outcome = .failure(error)
-                }
-                guard !Task.isCancelled else { return }
-                instance.deliver(outcome, for: request)
+        let instance = UncheckedInstance(value: self)
+        let task = Task {
+            let outcome: Result<StubResponse, any Error>
+            do {
+                outcome = .success(try await handler(request))
+            } catch {
+                outcome = .failure(error)
             }
+            guard !Task.isCancelled else { return }
+            instance.value.deliver(outcome, for: request)
         }
+        loading.withLock { $0 = task }
     }
 
     override func stopLoading() {
