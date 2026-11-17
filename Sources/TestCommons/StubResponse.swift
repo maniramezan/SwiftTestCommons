@@ -7,6 +7,7 @@ import Foundation
 /// ### Creating responses
 /// - ``init(statusCode:headers:body:)``
 /// - ``json(_:statusCode:)``
+/// - ``json(encoding:statusCode:encoder:)``
 /// - ``text(_:statusCode:)``
 ///
 /// ### Response contents
@@ -39,6 +40,20 @@ public struct StubResponse: Sendable, Equatable {
     /// - Returns: The response.
     public static func json(_ json: String, statusCode: Int = 200) -> StubResponse {
         StubResponse(statusCode: statusCode, headers: ["Content-Type": "application/json"], body: Data(json.utf8))
+    }
+
+    /// Creates a JSON response by encoding a value, with a `Content-Type: application/json` header.
+    /// - Parameters:
+    ///   - value: The value to encode as the body.
+    ///   - statusCode: The HTTP status code; defaults to 200.
+    ///   - encoder: The encoder, including caller-specific date and key strategies.
+    /// - Returns: The response.
+    /// - Throws: Any encoding error.
+    public static func json(
+        encoding value: some Encodable, statusCode: Int = 200, encoder: JSONEncoder = JSONEncoder()
+    ) throws -> StubResponse {
+        StubResponse(
+            statusCode: statusCode, headers: ["Content-Type": "application/json"], body: try encoder.encode(value))
     }
 
     /// Creates a plain-text response with a `Content-Type: text/plain` header.

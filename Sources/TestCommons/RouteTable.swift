@@ -6,7 +6,7 @@ import Foundation
 
 /// Slot bookkeeping for stubbed sessions, kept separate from the global pool for testing.
 struct RouteTable {
-    typealias Handler = @Sendable (URLRequest) throws -> StubResponse
+    typealias Handler = @Sendable (URLRequest) async throws -> StubResponse
     private struct Route {
         let owner: UUID
         let handler: Handler

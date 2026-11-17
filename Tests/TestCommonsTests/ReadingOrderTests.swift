@@ -131,4 +131,19 @@ struct ReadingOrderTests {
         #expect(pair.first == left)
         #expect(pair.second == shifted)
     }
+
+    @Test(arguments: [ReadingDirection.leftToRight, .rightToLeft])
+    func wholeRowsReportTheFirstOffendingIndex(direction: ReadingDirection) {
+        let cells = (0..<4).map { CGRect(x: CGFloat($0) * 50, y: 0, width: 40, height: 40) }
+        let ordered = direction == .leftToRight ? cells : cells.reversed()
+        #expect(ReadingOrder.firstViolation(in: ordered, direction: direction) == nil)
+        #expect(ReadingOrder.firstViolation(in: [ordered[0]], direction: direction) == nil)
+        #expect(ReadingOrder.firstViolation(in: [], direction: direction) == nil)
+        var swapped = ordered
+        swapped.swapAt(1, 2)
+        #expect(ReadingOrder.firstViolation(in: swapped, direction: direction) == 2)
+        var wrapped = ordered
+        wrapped[3] = wrapped[3].offsetBy(dx: 0, dy: 60)
+        #expect(ReadingOrder.firstViolation(in: wrapped, direction: direction) == 3)
+    }
 }

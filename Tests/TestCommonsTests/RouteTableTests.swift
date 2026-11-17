@@ -14,7 +14,7 @@ struct RouteTableTests {
         url = try #require(URL(string: "https://example.test/items?page=1"))
     }
 
-    @Test func tablesAreBoundedReuseSlotsAndIgnoreStaleReleases() throws {
+    @Test func tablesAreBoundedReuseSlotsAndIgnoreStaleReleases() async throws {
         var table = RouteTable(capacity: 2)
         let first = UUID()
         let second = UUID()
@@ -27,7 +27,7 @@ struct RouteTableTests {
         table.release(0, owner: first)
         table.release(7, owner: third)
         let handler = try #require(table.handler(for: 0))
-        #expect(try handler(URLRequest(url: url)) == .text("third"))
+        #expect(try await handler(URLRequest(url: url)) == .text("third"))
         #expect(table.handler(for: -1) == nil)
         #expect(StubbedURLSession.maximumConcurrentSessions == 64)
         #expect(StubbedURLSession.PoolExhausted() == StubbedURLSession.PoolExhausted())

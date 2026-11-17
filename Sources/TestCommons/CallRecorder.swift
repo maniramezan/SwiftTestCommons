@@ -20,6 +20,7 @@
 /// - ``waitForCount(_:timeout:)``
 public actor CallRecorder<Value: Sendable> {
     private var recordedValues: [Value] = []
+    private let changes = ChangeSignal()
 
     /// Creates an empty recorder.
     public init() {}
@@ -29,15 +30,21 @@ public actor CallRecorder<Value: Sendable> {
     /// - Parameter value: The argument or event to record.
     public func record(_ value: Value) {
         recordedValues.append(value)
+        changes.notify()
     }
 
     /// The number of recorded calls.
     public var count: Int { recordedValues.count }
 
     /// Clears the current history; pending count waits observe the new history.
-    public func reset() { recordedValues.removeAll() }
+    public func reset() {
+        recordedValues.removeAll()
+        changes.notify()
+    }
 
     /// Waits in real time until at least `count` calls have been recorded.
+    ///
+    /// Wakes when a call is recorded rather than polling.
     /// - Parameters:
     ///   - count: The nonnegative minimum call count.
     ///   - timeout: The total monotonic wait budget.
@@ -45,9 +52,8 @@ public actor CallRecorder<Value: Sendable> {
     /// - Throws: ``ObservationTimeout`` with the last history, or cancellation.
     public func waitForCalls(_ count: Int, timeout: Duration = .seconds(2)) async throws -> [Value] {
         precondition(count >= 0)
-        return try await waitUntil(
-            timeout: timeout, pollInterval: .milliseconds(1),
-            operation: { await self.values() }, matching: { $0.count >= count })
+        return try await changes.observe(
+            timeout: timeout, operation: { await self.values() }, matching: { $0.count >= count })
     }
 
     /// Waits for at least the requested number of calls and returns the history.

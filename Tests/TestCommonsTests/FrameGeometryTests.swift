@@ -25,4 +25,15 @@ struct FrameGeometryTests {
         #expect(FrameGeometry.horizontalGap(between: first, and: first.offsetBy(dx: 9, dy: 0)) == 0)
         #expect(FrameGeometry.horizontalGap(between: .zero, and: first) == nil)
     }
+
+    @Test func verticalChecksMirrorTheHorizontalOnes() {
+        let first = CGRect(x: 0, y: 0, width: 10, height: 10)
+        #expect(FrameGeometry.verticalGap(between: first, and: first.offsetBy(dx: 0, dy: 15)) == 5)
+        #expect(FrameGeometry.verticalGap(between: first.offsetBy(dx: 0, dy: 10), and: first) == 0)
+        #expect(FrameGeometry.verticalGap(between: .zero, and: first) == nil)
+        #expect(FrameGeometry.verticallyAligned(first, first.offsetBy(dx: 30, dy: 0)))
+        #expect(!FrameGeometry.verticallyAligned(first, first.offsetBy(dx: 0, dy: 1)))
+        #expect(!FrameGeometry.verticallyAligned(first, first, tolerance: 0))
+        #expect(!FrameGeometry.verticallyAligned(.zero, first))
+    }
 }

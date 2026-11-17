@@ -130,4 +130,23 @@ struct ManualClockTests {
         #expect(start.duration(to: later) == .milliseconds(500))
         #expect(later.duration(to: start) == .milliseconds(-500))
     }
+
+    @Test func steppedAdvancesRunEveryIterationOfASleepLoop() async throws {
+        let clock = ManualClock()
+        let ticks = TestValueBox(0)
+        let poller = Task {
+            for _ in 0..<3 {
+                try await clock.sleep(for: .seconds(1))
+                ticks.withValue { $0 += 1 }
+            }
+        }
+        try await clock.advance(by: .seconds(1), steps: 3)
+        try await poller.value
+        #expect(ticks.get() == 3)
+        #expect(clock.now.offset == .seconds(3))
+        await #expect(throws: ObservationTimeout<Int>.self) {
+            try await clock.advance(by: .seconds(1), steps: 1, timeout: .milliseconds(10))
+        }
+        #expect(clock.now.offset == .seconds(3))
+    }
 }

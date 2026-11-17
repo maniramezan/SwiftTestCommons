@@ -13,7 +13,9 @@
 /// - ``contains(_:in:tolerance:)``
 /// - ``overlaps(_:_:)``
 /// - ``horizontalGap(between:and:)``
+/// - ``verticalGap(between:and:)``
 /// - ``horizontallyAligned(_:_:tolerance:)``
+/// - ``verticallyAligned(_:_:tolerance:)``
 public enum FrameGeometry {
     /// Checks whether a frame is finite, nonempty, and has finite centers.
     /// - Parameter frame: The frame to validate.
@@ -60,6 +62,20 @@ public enum FrameGeometry {
         }
         return abs(first.midX - second.midX) < tolerance
     }
+
+    /// Checks vertical-center alignment using an exclusive tolerance.
+    /// - Parameters:
+    ///   - first: The first frame.
+    ///   - second: The other frame.
+    ///   - tolerance: The finite, positive maximum center difference in points.
+    /// - Returns: Whether valid frames have vertical centers within the tolerance.
+    public static func verticallyAligned(_ first: CGRect, _ second: CGRect, tolerance: CGFloat = 1) -> Bool {
+        guard isUsable(first), isUsable(second), tolerance.isFinite, tolerance > 0 else {
+            return false
+        }
+        return abs(first.midY - second.midY) < tolerance
+    }
+
     /// Returns the horizontal edge separation of two valid frames, regardless of direction.
     /// - Parameters:
     ///   - first: The first frame.
@@ -70,6 +86,18 @@ public enum FrameGeometry {
             return nil
         }
         return max(0, max(first.minX, second.minX) - min(first.maxX, second.maxX))
+    }
+
+    /// Returns the vertical edge separation of two valid frames, regardless of direction.
+    /// - Parameters:
+    ///   - first: The first frame.
+    ///   - second: The other frame in the same coordinate space.
+    /// - Returns: A nonnegative gap, zero for overlapping vertical spans, or nil for invalid frames.
+    public static func verticalGap(between first: CGRect, and second: CGRect) -> CGFloat? {
+        guard isUsable(first), isUsable(second) else {
+            return nil
+        }
+        return max(0, max(first.minY, second.minY) - min(first.maxY, second.maxY))
     }
 
 }

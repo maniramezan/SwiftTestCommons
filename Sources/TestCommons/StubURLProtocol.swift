@@ -28,6 +28,9 @@ class StubURLProtocol: URLProtocol {
         StubURLProtocol60.self, StubURLProtocol61.self, StubURLProtocol62.self, StubURLProtocol63.self,
     ]
     private static let routes = Mutex(RouteTable(capacity: pool.count))
+    /// Notified whenever a route is released, so waiting sessions can claim it.
+    static let releases = ChangeSignal()
+    private let loading = Mutex<Task<Void, Never>?>(nil)
 
     class var slot: Int { -1 }
 
@@ -37,6 +40,19 @@ class StubURLProtocol: URLProtocol {
 
     static func release(_ slot: Int, owner: UUID) {
         routes.withLock { $0.release(slot, owner: owner) }
+        releases.notify()
+    }
+
+    /// Claims a route, waiting up to `timeout` for another session to release one.
+    static func acquire(owner: UUID, _ handler: @escaping Handler, waitingUpTo timeout: Duration) async throws
+        -> Int?
+    {
+        do {
+            return try await releases.observe(
+                timeout: timeout, operation: { acquire(owner: owner, handler) }, matching: { $0 != nil })
+        } catch is ObservationTimeout<Int?> {
+            return nil
+        }
     }
 
     static func handler(for slot: Int) -> Handler? {
@@ -52,8 +68,36 @@ class StubURLProtocol: URLProtocol {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
             return
         }
-        do {
-            let stub = try handler(Self.recordable(request))
+        let request = Self.recordable(request)
+        // URLProtocol is not Sendable, but URL loading tolerates client callbacks from
+        // any thread, and `stopLoading` cancels the task before the instance is released.
+        nonisolated(unsafe) let instance = self
+        loading.withLock { task in
+            task = Task {
+                let outcome: Result<StubResponse, any Error>
+                do {
+                    outcome = .success(try await handler(request))
+                } catch {
+                    outcome = .failure(error)
+                }
+                guard !Task.isCancelled else { return }
+                instance.deliver(outcome, for: request)
+            }
+        }
+    }
+
+    override func stopLoading() {
+        loading.withLock { task in
+            task?.cancel()
+            task = nil
+        }
+    }
+
+    private func deliver(_ outcome: Result<StubResponse, any Error>, for request: URLRequest) {
+        switch outcome {
+        case .failure(let error):
+            client?.urlProtocol(self, didFailWithError: error)
+        case .success(let stub):
             guard
                 let url = request.url,
                 let response = HTTPURLResponse(
@@ -67,12 +111,8 @@ class StubURLProtocol: URLProtocol {
                 client?.urlProtocol(self, didLoad: stub.body)
             }
             client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
         }
     }
-
-    override func stopLoading() {}
 
     static func recordable(_ request: URLRequest) -> URLRequest {
         var copy = request
