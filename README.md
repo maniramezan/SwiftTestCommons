@@ -229,9 +229,10 @@ caller-owned interaction strategy.
 
 ## Related packages
 
-[TestCommonsMacroTesting](https://github.com/maniramezan/TestCommonsMacroTesting) is an independent
-package. Its Swift Testing macro-expansion adapter supports diagnostics and fix-its and preserves
-failure locations, so core consumers never resolve SwiftSyntax.
+[SwiftMacroTestCommons](https://github.com/maniramezan/SwiftMacroTestCommons) is the companion
+package for macro tests. Its Swift Testing macro-expansion adapter supports diagnostics and fix-its
+and preserves failure locations. It is separate because SwiftPM applies platform minimums
+package-wide: it supports macOS 13 and iOS 17, and core consumers never resolve SwiftSyntax.
 
 `Integrations/ConsumerTests` verifies generated UserDefaultMacro code against isolated
 preferences at TestCommons' deployment minimums without raising UserDefaultMacro's
