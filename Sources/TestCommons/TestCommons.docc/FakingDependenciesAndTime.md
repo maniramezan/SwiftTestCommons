@@ -78,11 +78,50 @@ import TestCommons
 ```
 
 Use ``StubbedURLSession/init(configuration:handler:)`` to choose a response from the
-request, or throw a `URLError` to simulate a transport failure. Recorded requests keep
+request, or throw a `URLError` to simulate a transport failure. ``StubResponse/json(encoding:statusCode:encoder:)``
+encodes a model as the response body. Recorded requests keep
 per-request headers and expose request bodies through `httpBody`. On Linux, set headers and
 `httpBody` on the request itself; FoundationNetworking hides session headers and upload-task bodies. Each stub occupies one
 of ``StubbedURLSession/maximumConcurrentSessions`` routes until session invalidation finishes. Keep the stub alive while
 the session is in use; unrouted requests fail rather than reaching the network.
+
+### Hold a request in flight
+
+The handler is asynchronous and runs in its own task, so it can wait. Await an ``AsyncGate``
+to hold a request while the test checks loading state, and use
+``StubbedURLSession/waitForRequests(_:timeout:)`` to know the request arrived. Cancelling the
+session task cancels the handler.
+
+```swift
+import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+import Testing
+import TestCommons
+
+@Test func checkLoadingState() async throws {
+    let gate = AsyncGate()
+    let stub = try StubbedURLSession { _ in
+        try await gate.wait()
+        return .text("done")
+    }
+    defer { stub.invalidate() }
+
+    let session = stub.session
+    let url = try #require(URL(string: "https://example.test/slow"))
+    let load = Task { try await session.data(from: url) }
+    _ = try await stub.waitForRequests(1)
+    // Assert loading state here; the request has arrived but has no response yet.
+    gate.open()
+    let (body, _) = try await load.value
+    #expect(String(decoding: body, as: UTF8.self) == "done")
+}
+```
+
+Sleep on a ``ManualClock`` inside the handler to simulate latency deterministically. In
+heavily parallel suites, ``StubbedURLSession/init(configuration:waitingForRouteUpTo:handler:)``
+waits for a route instead of throwing ``StubbedURLSession/PoolExhausted``.
 
 ### Control time
 
@@ -113,7 +152,9 @@ sleeping task removes only that sleeper.
 
 An advance moves time straight to its target. Code that wakes and sleeps again, such as a
 retry or polling loop, measures its next deadline from the new time, so advancing five
-seconds runs one iteration of a one-second loop, not five. Step through each iteration:
+seconds runs one iteration of a one-second loop, not five. Step through each iteration with
+``ManualClock/advance(by:steps:waitingForSleepers:timeout:)``, which waits for the sleeper
+before every step:
 
 ```swift
 import Testing
@@ -129,10 +170,7 @@ import TestCommons
         }
     }
 
-    for _ in 0..<3 {
-        try await clock.waitForSleepers(1)
-        clock.advance(by: .seconds(1))
-    }
+    try await clock.advance(by: .seconds(1), steps: 3)
     try await poller.value
     #expect(ticks.get() == 3)
 }

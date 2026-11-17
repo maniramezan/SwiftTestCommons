@@ -16,6 +16,9 @@
 /// - ``follows(_:_:in:rowTolerance:)``
 /// - ``defaultRowTolerance``
 ///
+/// ### Checking a whole row
+/// - ``firstViolation(in:direction:rowTolerance:)``
+///
 /// ### Selecting candidates
 /// - ``firstAdjacentPair(in:successor:rowTolerance:)``
 public enum ReadingOrder {
@@ -96,6 +99,25 @@ public enum ReadingOrder {
             return (first, second)
         }
         return nil
+    }
+
+    /// The index of the first frame that does not follow its predecessor in `direction`.
+    ///
+    /// Checks a whole row in one call, such as the cells of a week or the items of a toolbar,
+    /// in their logical order. Each frame must share a row with the previous one and advance
+    /// strictly in `direction`. Fewer than two frames have no violation.
+    ///
+    /// - Parameters:
+    ///   - frames: Frames in logical order, all in the same coordinate space.
+    ///   - direction: The horizontal direction to check.
+    ///   - rowTolerance: The exclusive vertical-center tolerance, in points.
+    /// - Returns: The index of the first offending frame (never zero), or `nil` when ordered.
+    public static func firstViolation(
+        in frames: [CGRect], direction: ReadingDirection, rowTolerance: CGFloat = defaultRowTolerance
+    ) -> Int? {
+        frames.indices.dropFirst().first { index in
+            !follows(frames[index], frames[index - 1], in: direction, rowTolerance: rowTolerance)
+        }
     }
 
     private static func isUsable(_ frame: CGRect) -> Bool { FrameGeometry.isUsable(frame) }

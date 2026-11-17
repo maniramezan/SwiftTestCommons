@@ -44,23 +44,31 @@ struct StubbedURLSessionTests {
         var stubs: [StubbedURLSession] = []
         var releases: [AsyncGate] = []
         defer { stubs.forEach { $0.invalidate() } }
-        var exhausted = false
-        for _ in 0...StubbedURLSession.maximumConcurrentSessions {
-            do {
-                let gate = AsyncGate()
-                let signal = ReleaseSignal(gate: gate)
-                stubs.append(
-                    try StubbedURLSession { _ in
-                        withExtendedLifetime(signal) { StubResponse() }
-                    })
-                releases.append(gate)
-            } catch is StubbedURLSession.PoolExhausted {
-                exhausted = true
-                break
-            }
+        // Earlier tests release their routes asynchronously after invalidation, so wait
+        // for those routes too: the pool is only exhausted once this test owns every slot.
+        while stubs.count < StubbedURLSession.maximumConcurrentSessions {
+            let gate = AsyncGate()
+            let signal = ReleaseSignal(gate: gate)
+            stubs.append(
+                try await StubbedURLSession(waitingForRouteUpTo: .seconds(10)) { _ in
+                    withExtendedLifetime(signal) { StubResponse() }
+                })
+            releases.append(gate)
         }
-        #expect(exhausted)
-        #expect(stubs.count <= StubbedURLSession.maximumConcurrentSessions)
+        #expect(throws: StubbedURLSession.PoolExhausted.self) {
+            try StubbedURLSession { _ in StubResponse() }
+        }
+        await #expect(throws: StubbedURLSession.PoolExhausted.self) {
+            try await StubbedURLSession(waitingForRouteUpTo: .milliseconds(10)) { _ in StubResponse() }
+        }
+        let waiting = Task {
+            try await StubbedURLSession(waitingForRouteUpTo: .seconds(30)) { _ in .text("waited") }
+        }
+        stubs.removeFirst().invalidate()
+        let waited = try await waiting.value
+        let (data, _) = try await waited.session.data(from: url)
+        #expect(String(decoding: data, as: UTF8.self) == "waited")
+        waited.invalidate()
         stubs.forEach { $0.invalidate() }
         // Wait for route handlers to be released before another test acquires the pool.
         for gate in releases {
@@ -185,5 +193,53 @@ struct StubbedURLSessionTests {
         let (data, _) = try await second.session.data(from: url)
         #expect(String(decoding: data, as: UTF8.self) == "second")
         #expect(second.requests.count == 1)
+    }
+
+    @Test func asyncHandlersCanHoldARequestInFlight() async throws {
+        let gate = AsyncGate()
+        let stub = try StubbedURLSession { _ in
+            try await gate.wait()
+            return .text("released")
+        }
+        defer { stub.invalidate() }
+        let session = stub.session
+        let url = url
+        let response = Task { try await session.data(from: url) }
+        let received = try await stub.waitForRequests(1)
+        #expect(received.first?.url == url)
+        #expect(gate.waiterCount == 1)
+        gate.open()
+        let (data, _) = try await response.value
+        #expect(String(decoding: data, as: UTF8.self) == "released")
+    }
+
+    @Test func cancellingARequestCancelsItsHandler() async throws {
+        let gate = AsyncGate()
+        let cancelled = AsyncGate()
+        let stub = try StubbedURLSession { _ in
+            do {
+                try await gate.wait()
+            } catch {
+                cancelled.open()
+                throw error
+            }
+            return StubResponse()
+        }
+        defer { stub.invalidate() }
+        let session = stub.session
+        let url = url
+        let response = Task { try await session.data(from: url) }
+        _ = try await stub.waitForRequests(1)
+        response.cancel()
+        await #expect(throws: (any Error).self) { try await response.value }
+        try await cancelled.wait()
+    }
+
+    @Test func waitingForMissingRequestsTimesOut() async throws {
+        let stub = try StubbedURLSession { _ in StubResponse() }
+        defer { stub.invalidate() }
+        await #expect(throws: ObservationTimeout<[URLRequest]>.self) {
+            try await stub.waitForRequests(1, timeout: .milliseconds(10))
+        }
     }
 }

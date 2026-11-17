@@ -10,32 +10,50 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  XCODE_VERSION: '26.6'
+  # Two simulators so every xcodebuild test run fans out across clones.
+  SIMULATOR_A: 'platform=iOS Simulator,name=iPhone 17,OS=latest'
+  SIMULATOR_B: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+  # One DerivedData folder per job, so later steps reuse what earlier steps built.
+  DERIVED_DATA: ${{ github.workspace }}/.build/DerivedData
+
+# Hosted macOS runners are scarce, so the macOS work is split across two jobs
+# instead of one job per platform. Each job builds an artifact once and reuses it.
 jobs:
-  validate:
+  swiftpm:
     name: Format, Build, Test, and DocC
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
+      - name: Checkout UserDefaultMacro
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: maniramezan/UserDefaultMacro
+          path: .ci/UserDefaultMacro
+
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1.7.0
         with:
-          xcode-version: '26.6'
+          xcode-version: ${{ env.XCODE_VERSION }}
 
       - name: Show Swift version
         run: swift --version
 
       - name: Lint
-        run: swift format lint --strict --recursive Package.swift Sources Tests
+        run: swift format lint --strict --recursive Package.swift Sources Tests Integrations
 
+      # Builds with coverage flags so the test step reuses these products.
       - name: Build
-        run: swift build
+        run: swift build --build-tests --enable-code-coverage
 
       - name: Test
-        run: swift test --enable-code-coverage
+        run: swift test --skip-build --enable-code-coverage
 
       - name: Check coverage
         run: python3 Scripts/check-coverage.py --diff-base "origin/${{ github.base_ref || 'main' }}"
@@ -43,22 +61,104 @@ jobs:
       - name: Build and validate DocC documentation
         run: python3 Scripts/build-documentation.py
 
-      - name: Build XCUITest helpers for iOS
-        run: xcodebuild -scheme TestCommonsXCUI -destination 'generic/platform=iOS Simulator' build
+      # swift-syntax is the only remote dependency and the slowest build in CI.
+      - name: Restore consumer build cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: Integrations/ConsumerTests/.build
+          key: consumer-${{ runner.os }}-xcode${{ env.XCODE_VERSION }}-${{ hashFiles('Integrations/ConsumerTests/Package.resolved') }}
+          restore-keys: |
+            consumer-${{ runner.os }}-xcode${{ env.XCODE_VERSION }}-
 
-      # The UIKit rendering paths only run on iOS; macOS tests exercise AppKit.
-      - name: Test SwiftUI rendering on iOS Simulator
+      - name: UserDefaultMacro consumer tests
+        env:
+          USERDEFAULT_MACRO_PATH: ${{ github.workspace }}/.ci/UserDefaultMacro
+        run: swift test --package-path Integrations/ConsumerTests
+
+  xcode:
+    name: Apple platforms, iOS tests, and XCUI tests
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      # Also serves as the iOS platform build: every product plus its tests.
+      - name: Build package tests for iOS Simulator
         run: |
-          device="$(xcrun simctl list devices available --json | python3 -c '
-          import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime, entries in devices.items() if "iOS" in runtime
-                     for d in entries if d["name"].startswith("iPhone")))')"
-          xcodebuild test -scheme TestCommons-Package -destination "id=$device" -only-testing:TestCommonsUITests
+          xcodebuild build-for-testing -scheme TestCommons-Package \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      # macOS covers the AppKit paths; this runs every test target against UIKit.
+      - name: Package tests on iOS Simulator
+        run: |
+          xcodebuild test-without-building -scheme TestCommons-Package \
+            -destination "$SIMULATOR_A" -destination "$SIMULATOR_B" \
+            -parallel-testing-enabled YES -parallel-testing-worker-count 2 \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath PackageTests.xcresult
+
+      - name: Build the XCUI fixture app
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build-for-testing -project Integrations/UITestHost/UITestHost.xcodeproj -scheme UITestHost \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      - name: XCUI helpers against the fixture app
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild test-without-building -project Integrations/UITestHost/UITestHost.xcodeproj -scheme UITestHost \
+            -destination "$SIMULATOR_A" -destination "$SIMULATOR_B" \
+            -parallel-testing-enabled YES -parallel-testing-worker-count 2 \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath UITestHost.xcresult
+
+      - name: Build for Mac Catalyst
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -scheme TestCommons-Package \
+            -destination 'generic/platform=macOS,variant=Mac Catalyst' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      - name: Build for tvOS
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -scheme TestCommons-Package \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      - name: Build for visionOS
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -scheme TestCommons-Package \
+            -destination 'generic/platform=visionOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      - name: Build for watchOS
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -scheme TestCommons-Package \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA"
+
+      - name: Upload result bundles
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: xcresults
+          path: '*.xcresult'
+          if-no-files-found: ignore
 
   linux:
     name: Linux core build and tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container: swift:6.2.4-noble
     steps:
       - uses: actions/checkout@v7.0.1

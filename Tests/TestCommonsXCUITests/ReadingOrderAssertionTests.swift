@@ -1,4 +1,4 @@
-#if os(macOS) || os(iOS)
+#if os(macOS) || os(iOS) || os(tvOS) || os(visionOS)
     import CoreGraphics
     import TestCommons
     import XCTest
@@ -30,6 +30,22 @@
                     first: left, second: right.offsetBy(dx: 0, dy: 5), direction: .leftToRight, rowTolerance: 2)
             } issueMatcher: { issue in
                 issue.compactDescription.contains("same row (tolerance: 2.0)")
+            }
+        }
+
+        func testOrderedRowsRecordNoFailure() {
+            let third = right.offsetBy(dx: 50, dy: 0)
+            XCTAssertReadingOrder([left, right, third], direction: .leftToRight)
+            XCTAssertReadingOrder([third, right, left], direction: .rightToLeft, "Persian week")
+            XCTAssertReadingOrder([], direction: .leftToRight)
+        }
+
+        func testRowViolationsNameTheOffendingIndex() {
+            let third = right.offsetBy(dx: 50, dy: 0)
+            XCTExpectFailure {
+                XCTAssertReadingOrder([left, third, right], direction: .leftToRight, "Week")
+            } issueMatcher: { issue in
+                issue.compactDescription.contains("Week: frame 2 does not follow frame 1 left to right")
             }
         }
 

@@ -3,9 +3,13 @@
 /// The deadline uses a monotonic clock. The operation must return promptly and
 /// cooperate with cancellation; a deadline cannot interrupt arbitrary user code.
 /// One observation is made even for a zero timeout. Errors propagate unchanged.
+///
+/// The closures run in the caller's isolation, so they can read non-sendable state
+/// such as a main-actor view model. Only the observed value must be sendable.
 /// - Parameters:
 ///   - timeout: The total observation budget, at least zero.
 ///   - pollInterval: The positive delay between observations.
+///   - isolation: The caller's actor; leave the default.
 ///   - operation: Reads the state without modifying it.
 ///   - predicate: Returns whether an observation satisfies the condition.
 /// - Returns: The first matching observation.
@@ -13,8 +17,9 @@
 public func waitUntil<Value: Sendable>(
     timeout: Duration,
     pollInterval: Duration = .milliseconds(10),
-    operation: @Sendable () async throws -> Value,
-    matching predicate: @Sendable (Value) -> Bool
+    isolation: isolated (any Actor)? = #isolation,
+    operation: () async throws -> Value,
+    matching predicate: (Value) -> Bool
 ) async throws -> Value {
     precondition(timeout >= .zero && pollInterval > .zero)
     let clock = ContinuousClock()

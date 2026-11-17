@@ -40,6 +40,7 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     private let outcomes: [Result<Response, any Error>]
     private let fallback: Result<Response, any Error>?
     private var gates: [Int: AsyncGate] = [:]
+    private let changes = ChangeSignal()
 
     /// The recorded requests in arrival order, including calls still held or in flight.
     public private(set) var requests: [Request] = []
@@ -77,6 +78,7 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     public func respond(to request: Request) async throws -> Response {
         let index = requests.count
         requests.append(request)
+        changes.notify()
         if let gate = gates[index] {
             try await gate.wait()
         }
@@ -90,6 +92,8 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     }
 
     /// Waits in real time until at least `count` calls have been recorded.
+    ///
+    /// Wakes when a call arrives rather than polling.
     /// - Parameters:
     ///   - count: The nonnegative minimum number of calls.
     ///   - timeout: The real-time observation budget.
@@ -97,8 +101,7 @@ public actor ScriptedResponder<Request: Sendable, Response: Sendable> {
     /// - Throws: ``ObservationTimeout`` with the last snapshot, or cancellation.
     public func waitForCalls(_ count: Int, timeout: Duration = .seconds(2)) async throws -> [Request] {
         precondition(count >= 0)
-        return try await waitUntil(
-            timeout: timeout, pollInterval: .milliseconds(1),
-            operation: { await self.requests }, matching: { $0.count >= count })
+        return try await changes.observe(
+            timeout: timeout, operation: { await self.requests }, matching: { $0.count >= count })
     }
 }

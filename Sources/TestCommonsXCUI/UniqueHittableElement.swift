@@ -1,4 +1,4 @@
-#if canImport(XCTest) && (os(macOS) || os(iOS))
+#if canImport(XCTest) && (os(macOS) || os(iOS) || os(tvOS) || os(visionOS))
     import XCTest
 
     /// Returns the sole currently hittable match, reporting ambiguous queries.

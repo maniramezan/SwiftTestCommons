@@ -1,4 +1,4 @@
-#if canImport(XCTest) && (os(macOS) || os(iOS))
+#if canImport(XCTest) && (os(macOS) || os(iOS) || os(tvOS) || os(visionOS))
     import XCTest
 
     /// Waits for an element to exist, reporting failures at the caller.
@@ -119,6 +119,8 @@
     }
 
     /// Waits for an element to disappear, reporting failure at the caller.
+    ///
+    /// Uses XCTest's native non-existence wait.
     /// - Parameters:
     ///   - element: The element to observe.
     ///   - timeout: The nonnegative total wait budget in seconds.
@@ -132,7 +134,81 @@
         _ element: XCUIElement, timeout: TimeInterval,
         named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
     ) -> Bool {
-        waitForElement(element, condition: .absent, timeout: timeout, name: name, file: file, line: line)
+        let succeeded = element.waitForNonExistence(timeout: timeout)
+        XCTAssertTrue(
+            succeeded,
+            "\(name) did not \(ElementCondition.absent.description) before the timeout.\n\(element.debugDescription)",
+            file: file, line: line)
+        return succeeded
+    }
+
+    /// Waits for an element to exist and become selected, reporting failure at the caller.
+    ///
+    /// Useful for tabs, segmented controls, and list rows whose selection follows a tap.
+    /// - Parameters:
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForSelection(
+        _ element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(element, condition: .selected, timeout: timeout, name: name, file: file, line: line)
+    }
+
+    /// Waits for an element to exist and gain focus, reporting failure at the caller.
+    ///
+    /// Focus is reported for keyboard and remote focus, such as on macOS and tvOS.
+    /// - Parameters:
+    ///   - element: The element to observe.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical control name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the condition matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForFocus(
+        _ element: XCUIElement, timeout: TimeInterval,
+        named name: String = "Element", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        waitForElement(element, condition: .focused, timeout: timeout, name: name, file: file, line: line)
+    }
+
+    /// Waits for a query to match exactly `count` elements, reporting failure at the caller.
+    ///
+    /// Useful after inserting or deleting rows. The failure message includes the query's
+    /// debug description.
+    /// - Parameters:
+    ///   - count: The nonnegative number of expected matches.
+    ///   - query: The caller's explicitly scoped element query.
+    ///   - timeout: The nonnegative total wait budget in seconds.
+    ///   - name: Optional logical query name for diagnostics.
+    ///   - file: The calling test's file.
+    ///   - line: The calling test's line.
+    /// - Returns: Whether the count matched before the timeout.
+    @MainActor
+    @discardableResult
+    public func waitForCount(
+        _ count: Int, of query: XCUIElementQuery, timeout: TimeInterval,
+        named name: String = "Query", file: StaticString = #filePath, line: UInt = #line
+    ) -> Bool {
+        precondition(count >= 0)
+        let predicate = ElementCondition.queryCount(count)
+        if predicate.evaluate(with: query) { return true }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: query)
+        let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        let succeeded = result == .completed
+        XCTAssertTrue(
+            succeeded,
+            "\(name) did not match \(count) elements before the timeout (\(result)); found \(query.count).\n\(query.debugDescription)",
+            file: file, line: line)
+        return succeeded
     }
 
     /// Waits for an element to expose exactly the expected label, reporting failure at the caller.
@@ -173,7 +249,7 @@
     }
 
     @MainActor
-    private func waitForElement(
+    func waitForElement(
         _ element: XCUIElement, condition: ElementCondition, timeout: TimeInterval,
         name: String, file: StaticString, line: UInt
     ) -> Bool {

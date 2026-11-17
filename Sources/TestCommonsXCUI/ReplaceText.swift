@@ -1,10 +1,13 @@
-#if canImport(XCTest) && (os(macOS) || os(iOS))
+#if canImport(XCTest) && (os(macOS) || os(iOS) || os(visionOS))
     import XCTest
 
     /// Replaces text in a plain editable field and verifies its accessibility value.
     ///
-    /// Supports fields whose string value exposes their actual contents, not secure
-    /// fields or placeholder-only values. The caller supplies the trailing caret location.
+    /// Supports fields whose string value exposes their actual contents, not secure fields.
+    /// A value equal to the field's placeholder is treated as empty, both before typing and
+    /// when verifying that an empty replacement cleared the field. Deletes one key per
+    /// Unicode scalar, so text with combining marks or joiners is fully cleared; surplus
+    /// deletes in an empty field have no effect. The caller supplies the trailing caret location.
     /// - Parameters:
     ///   - element: A hittable, plain text field with an actual string value.
     ///   - text: The replacement text; empty clears the field.
@@ -31,14 +34,28 @@
             return false
         }
         element.coordinate(withNormalizedOffset: caretOffset).tap()
-        if !current.isEmpty {
-            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        let placeholder = element.placeholderValue
+        let deletions = deletionCount(for: current, placeholder: placeholder)
+        if deletions > 0 {
+            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions))
         }
         if !text.isEmpty {
             element.typeText(text)
         }
         let remaining = remainingTimeout(timeout, elapsed: start.duration(to: .now))
-        return waitForValue(text, on: element, timeout: remaining, named: name, file: file, line: line)
+        let expected: ElementCondition = text.isEmpty ? .emptyValue(placeholder: placeholder) : .value(text)
+        return waitForElement(element, condition: expected, timeout: remaining, name: name, file: file, line: line)
+    }
+
+    /// The delete keystrokes needed to clear `value`, or zero when it is only the placeholder.
+    ///
+    /// One backspace removes at least one Unicode scalar, so the scalar count is enough even
+    /// when a backspace removes a whole grapheme cluster.
+    func deletionCount(for value: String, placeholder: String?) -> Int {
+        if let placeholder, !placeholder.isEmpty, value == placeholder {
+            return 0
+        }
+        return value.unicodeScalars.count
     }
 
     func remainingTimeout(_ timeout: TimeInterval, elapsed: Duration) -> TimeInterval {

@@ -15,7 +15,7 @@ import Synchronization
 /// Each advance moves time directly to its target. A task that wakes and sleeps again
 /// measures its next deadline from the new ``now``, so one large advance does not run
 /// several iterations of a sleep loop. To drive a loop that sleeps one second three
-/// times, advance one second at a time and wait for the sleeper before each advance.
+/// times, call ``advance(by:steps:waitingForSleepers:timeout:)`` with three steps.
 ///
 /// ## Topics
 ///
@@ -35,6 +35,7 @@ import Synchronization
 /// ### Advancing time
 /// - ``advance(by:)``
 /// - ``advance(to:)``
+/// - ``advance(by:steps:waitingForSleepers:timeout:)``
 public final class ManualClock: Clock, Sendable {
     /// A point in manual time, measured from the clock's creation.
     ///
@@ -82,6 +83,7 @@ public final class ManualClock: Clock, Sendable {
     }
 
     private let state = Mutex(State())
+    private let changes = ChangeSignal()
 
     /// Creates a clock whose current instant has a zero offset.
     public init() {}
@@ -112,6 +114,9 @@ public final class ManualClock: Clock, Sendable {
                     state.sleepers[id] = Sleeper(deadline: deadline, continuation: continuation)
                     return 0
                 }
+                if outcome == 0 {
+                    changes.notify()
+                }
                 if outcome == 1 {
                     continuation.resume(throwing: CancellationError())
                 }
@@ -122,6 +127,9 @@ public final class ManualClock: Clock, Sendable {
         } onCancel: {
             let sleeper = state.withLock { $0.sleepers.removeValue(forKey: id) }
             sleeper?.continuation.resume(throwing: CancellationError())
+            if sleeper != nil {
+                changes.notify()
+            }
         }
     }
 
@@ -149,18 +157,43 @@ public final class ManualClock: Clock, Sendable {
             for id in ready.keys { state.sleepers.removeValue(forKey: id) }
             return ready.values.sorted { $0.deadline < $1.deadline }
         }
+        if !due.isEmpty {
+            changes.notify()
+        }
         for sleeper in due { sleeper.continuation.resume() }
     }
 
     /// Waits in real time until at least `count` tasks are sleeping on this clock.
+    ///
+    /// Wakes when a sleep registers rather than polling.
     /// - Parameters:
     ///   - count: The nonnegative number of sleepers to wait for.
     ///   - timeout: The real-time observation budget.
     /// - Throws: ``ObservationTimeout`` with the last sleeper count, or cancellation.
     public func waitForSleepers(_ count: Int, timeout: Duration = .seconds(2)) async throws {
         precondition(count >= 0)
-        _ = try await waitUntil(
-            timeout: timeout, pollInterval: .milliseconds(1),
-            operation: { self.sleeperCount }, matching: { $0 >= count })
+        _ = try await changes.observe(
+            timeout: timeout, operation: { self.sleeperCount }, matching: { $0 >= count })
+    }
+
+    /// Drives a sleep loop through several iterations, one step at a time.
+    ///
+    /// Before each step, waits for `sleepers` tasks to be sleeping, then advances by `step`.
+    /// This replaces a hand-written wait-and-advance loop; one large advance would run only
+    /// one iteration because each new sleep is measured from the advanced time.
+    /// - Parameters:
+    ///   - step: The nonnegative amount of manual time to advance per iteration.
+    ///   - steps: The nonnegative number of advances.
+    ///   - sleepers: The nonnegative number of sleepers to wait for before each advance.
+    ///   - timeout: The real-time budget for each sleeper wait.
+    /// - Throws: ``ObservationTimeout`` when a loop stops sleeping, or cancellation.
+    public func advance(
+        by step: Duration, steps: Int, waitingForSleepers sleepers: Int = 1, timeout: Duration = .seconds(2)
+    ) async throws {
+        precondition(steps >= 0)
+        for _ in 0..<steps {
+            try await waitForSleepers(sleepers, timeout: timeout)
+            advance(by: step)
+        }
     }
 }

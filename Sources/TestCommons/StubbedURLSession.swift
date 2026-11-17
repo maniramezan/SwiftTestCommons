@@ -9,13 +9,16 @@ import Foundation
 /// Each instance routes only its own session's requests, so parallel tests can stub
 /// independently, on Apple platforms and Linux alike. Inject
 /// ``session`` into the code under test, then inspect ``requests``. Throw a `URLError`
-/// from the handler to simulate a transport failure. Uploaded bodies are recorded in
+/// from the handler to simulate a transport failure. The handler is asynchronous: await an
+/// ``AsyncGate`` to hold a request in flight, or sleep on a ``ManualClock`` to add latency.
+/// Cancelling the session task cancels the handler. Uploaded bodies are recorded in
 /// `httpBody`. On Linux, FoundationNetworking passes custom protocols only the request
 /// itself: the configuration's `httpAdditionalHeaders` and bodies given to `upload(for:from:)`
 /// are not visible there. Set headers and `httpBody` on the request for portable tests.
 ///
 /// Up to ``maximumConcurrentSessions`` stubs can be alive at once; creating another
-/// throws ``PoolExhausted``. Keep the stub alive while its session is in use:
+/// throws ``PoolExhausted``; ``init(configuration:waitingForRouteUpTo:handler:)`` waits for
+/// a route instead. Keep the stub alive while its session is in use:
 /// ``invalidate()`` or deinitialization cancels the session. Its route is released
 /// after session invalidation finishes, so outstanding requests cannot reach a replacement stub.
 /// Finish using the session before either occurs; invalidated sessions cannot be reused.
@@ -31,6 +34,7 @@ import Foundation
 ///
 /// ### Creating a session
 /// - ``init(configuration:handler:)``
+/// - ``init(configuration:waitingForRouteUpTo:handler:)``
 /// - ``init(responses:fallback:)``
 /// - ``StubResponse``
 /// - ``maximumConcurrentSessions``
@@ -39,6 +43,7 @@ import Foundation
 /// ### Using the session
 /// - ``session``
 /// - ``requests``
+/// - ``waitForRequests(_:timeout:)``
 /// - ``invalidate()``
 public final class StubbedURLSession: Sendable {
     /// Thrown when ``maximumConcurrentSessions`` stubs are already alive.
@@ -51,8 +56,8 @@ public final class StubbedURLSession: Sendable {
 
     /// The session to inject into the code under test.
     public let session: URLSession
-    private let owner = UUID()
-    private let recorded = TestValueBox<[URLRequest]>([])
+    private let recorded: TestValueBox<[URLRequest]>
+    private let changes: ChangeSignal
 
     private final class SessionDelegate: NSObject, URLSessionDelegate {
         private let slot: Int
@@ -70,29 +75,73 @@ public final class StubbedURLSession: Sendable {
 
     /// Creates a session that answers each request with `handler`.
     ///
-    /// The handler runs on a URL-loading thread; keep it synchronous and short.
+    /// The handler runs in a task per request; cancelling the request cancels it.
     /// - Parameters:
     ///   - configuration: The base configuration. It is copied, and the copy's protocol
     ///     classes are replaced; the caller's object is not modified.
     ///   - handler: Returns the response for a request, or throws to fail it.
     /// - Throws: ``PoolExhausted`` when too many stubbed sessions are alive.
-    public init(
+    public convenience init(
         configuration: URLSessionConfiguration = .ephemeral,
-        handler: @escaping @Sendable (URLRequest) throws -> StubResponse
+        handler: @escaping @Sendable (URLRequest) async throws -> StubResponse
     ) throws {
-        let recorded = recorded
-        let route: StubURLProtocol.Handler = { request in
-            recorded.withValue { $0.append(request) }
-            return try handler(request)
-        }
-        guard let slot = StubURLProtocol.acquire(owner: owner, route) else {
+        let route = Route(handler)
+        guard let slot = StubURLProtocol.acquire(owner: route.owner, route.handler) else {
             throw PoolExhausted()
         }
+        self.init(configuration: configuration, route: route, slot: slot)
+    }
+
+    /// Creates a session, waiting for a route when ``maximumConcurrentSessions`` are alive.
+    ///
+    /// Use this from heavily parallel suites where routes are released asynchronously
+    /// after other sessions finish invalidating.
+    /// - Parameters:
+    ///   - configuration: The base configuration; it is copied, not modified.
+    ///   - timeout: The real-time budget for a route to become free.
+    ///   - handler: Returns the response for a request, or throws to fail it.
+    /// - Throws: ``PoolExhausted`` when no route frees up in time, or cancellation.
+    public convenience init(
+        configuration: URLSessionConfiguration = .ephemeral,
+        waitingForRouteUpTo timeout: Duration,
+        handler: @escaping @Sendable (URLRequest) async throws -> StubResponse
+    ) async throws {
+        let route = Route(handler)
+        guard
+            let slot = try await StubURLProtocol.acquire(
+                owner: route.owner, route.handler, waitingUpTo: timeout)
+        else {
+            throw PoolExhausted()
+        }
+        self.init(configuration: configuration, route: route, slot: slot)
+    }
+
+    private init(configuration: URLSessionConfiguration, route: Route, slot: Int) {
+        recorded = route.recorded
+        changes = route.changes
         let configuration = (configuration.copy() as? URLSessionConfiguration) ?? .ephemeral
         configuration.protocolClasses = [StubURLProtocol.pool[slot]]
         session = URLSession(
             configuration: configuration,
-            delegate: SessionDelegate(slot: slot, owner: owner), delegateQueue: nil)
+            delegate: SessionDelegate(slot: slot, owner: route.owner), delegateQueue: nil)
+    }
+
+    /// The recording state and routed handler for one session, prepared before claiming a slot.
+    private struct Route {
+        let owner = UUID()
+        let recorded = TestValueBox<[URLRequest]>([])
+        let changes = ChangeSignal()
+        let handler: StubURLProtocol.Handler
+
+        init(_ handler: @escaping @Sendable (URLRequest) async throws -> StubResponse) {
+            let recorded = recorded
+            let changes = changes
+            self.handler = { request in
+                recorded.withValue { $0.append(request) }
+                changes.notify()
+                return try await handler(request)
+            }
+        }
     }
 
     /// Creates a session that answers requests with `responses` in order.
@@ -118,6 +167,22 @@ public final class StubbedURLSession: Sendable {
 
     /// The requests received so far in arrival order.
     public var requests: [URLRequest] { recorded.get() }
+
+    /// Waits in real time until at least `count` requests have reached the handler.
+    ///
+    /// Requests are recorded before the handler runs, so a request held in the
+    /// handler counts as received.
+    /// - Parameters:
+    ///   - count: The nonnegative minimum number of requests.
+    ///   - timeout: The real-time observation budget.
+    /// - Returns: A snapshot containing at least `count` requests.
+    /// - Throws: ``ObservationTimeout`` with the last snapshot, or cancellation.
+    public func waitForRequests(_ count: Int, timeout: Duration = .seconds(2)) async throws -> [URLRequest] {
+        precondition(count >= 0)
+        let recorded = recorded
+        return try await changes.observe(
+            timeout: timeout, operation: { recorded.get() }, matching: { $0.count >= count })
+    }
 
     /// Cancels outstanding tasks and stops routing requests to the handler.
     ///

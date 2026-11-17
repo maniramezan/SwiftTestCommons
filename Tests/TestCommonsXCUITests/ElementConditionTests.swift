@@ -1,4 +1,4 @@
-#if os(macOS) || os(iOS)
+#if os(macOS) || os(iOS) || os(tvOS) || os(visionOS)
     import Foundation
     import Testing
 
@@ -47,14 +47,42 @@
         @Test(arguments: [
             (ElementCondition.enabled, "exist and become enabled"),
             (.hittable, "exist and become hittable"),
+            (.selected, "exist and become selected"),
+            (.focused, "exist and gain focus"),
             (.absent, "disappear"),
             (.label("Done"), "exist with label equal to 'Done'"),
             (.labelContaining("Do"), "exist with label containing 'Do'"),
             (.value("1"), "exist with value equal to '1'"),
             (.valueContaining("1"), "exist with value containing '1'"),
+            (.emptyValue(placeholder: nil), "exist with an empty value"),
         ])
         func failureDescriptionsNameTheCondition(condition: ElementCondition, description: String) {
             #expect(condition.description == description)
+        }
+
+        @Test(arguments: [true, false], [true, false])
+        func selectionAndFocusRequireExistence(exists: Bool, state: Bool) {
+            let attributes: NSDictionary = ["exists": exists, "isSelected": state, "hasFocus": state]
+            #expect(ElementCondition.selected.predicate.evaluate(with: attributes) == (exists && state))
+            #expect(ElementCondition.focused.predicate.evaluate(with: attributes) == (exists && state))
+        }
+
+        @Test(arguments: [
+            (value: "", placeholder: nil as String?, matches: true),
+            (value: "Search", placeholder: "Search", matches: true),
+            (value: "Search", placeholder: nil, matches: false),
+            (value: "abc", placeholder: "Search", matches: false),
+        ])
+        func emptyValuesAcceptThePlaceholder(value: String, placeholder: String?, matches: Bool) {
+            let attributes: NSDictionary = ["exists": true, "value": value]
+            #expect(
+                ElementCondition.emptyValue(placeholder: placeholder).predicate.evaluate(with: attributes) == matches)
+        }
+
+        @Test
+        func queryCountsMatchExactly() {
+            #expect(ElementCondition.queryCount(3).evaluate(with: ["count": 3] as NSDictionary))
+            #expect(!ElementCondition.queryCount(3).evaluate(with: ["count": 4] as NSDictionary))
         }
 
         @Test
