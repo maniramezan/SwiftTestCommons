@@ -1,0 +1,54 @@
+# Generates UITestHost.xcodeproj: `xcodegen generate` in this directory.
+# The generated project is checked in so CI needs no generator.
+name: UITestHost
+options:
+  bundleIdPrefix: dev.testcommons
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  TestCommons:
+    path: ../..
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    GENERATE_INFOPLIST_FILE: "YES"
+targets:
+  UITestHost:
+    type: application
+    platform: iOS
+    sources: [App]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.testcommons.UITestHost
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1,2"
+  UITestHostUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: UITestHost
+      - package: TestCommons
+        product: TestCommons
+      - package: TestCommons
+        product: TestCommonsXCUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.testcommons.UITestHostUITests
+        TEST_TARGET_NAME: UITestHost
+schemes:
+  UITestHost:
+    build:
+      targets:
+        UITestHost: all
+        UITestHostUITests: [test]
+    test:
+      targets:
+        - name: UITestHostUITests
+          parallelizable: true
