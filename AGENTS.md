@@ -10,7 +10,7 @@
 - One type per file, named after the type; nested types stay with their parent. Tests mirror this:
   one `<Type>Tests.swift` per type under test. Free functions live in a file named for the feature.
 - `swift build`, `swift test --enable-code-coverage`, `python3 Scripts/check-coverage.py --diff-base origin/main`,
-  `swift format lint --strict --recursive Package.swift Sources Tests`, and `python3 Scripts/build-documentation.py`
+  `swift format lint --strict --recursive Package.swift Sources Tests Integrations`, and `python3 Scripts/build-documentation.py`
   before every PR. The documentation check fails on any public API without documentation, Topics curation,
   or parameter and return docs, and type-checks every Swift example in the DocC guides.
 - CI fails when a target drops below its coverage floor or changed lines are under 90% covered.

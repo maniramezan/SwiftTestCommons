@@ -8,7 +8,15 @@ Shared test helpers for Swift packages and tools.
 | `TestCommonsXCUI` | XCTest | UI test targets only |
 | `TestCommonsUI` | SwiftUI / AppKit or UIKit | Hosted-view test targets |
 
-Requires Swift 6 language mode, iOS 18 or macOS 15. The core product also builds and tests on Linux.
+Requires Swift 6 language mode. The core product also builds and tests on Linux.
+
+| Platform | Minimum | `TestCommons` | `TestCommonsUI` | `TestCommonsXCUI` |
+|---|---|---|---|---|
+| iOS, Mac Catalyst | 18 | ✓ | Offscreen and hosted | All helpers |
+| macOS | 15 | ✓ | Offscreen and hosted | All helpers except Dynamic Type launch arguments |
+| visionOS | 2 | ✓ | Offscreen and hosted | All helpers |
+| tvOS | 18 | ✓ | Offscreen and hosted | Waits, assertions, and launch configuration; no gesture helpers |
+| watchOS | 11 | ✓ | Offscreen only | Not available |
 
 ## Installation
 
@@ -16,7 +24,7 @@ Add the package, then depend on the products each target needs:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/maniramezan/SwiftTestCommons", .upToNextMinor(from: "0.3.0")),
+    .package(url: "https://github.com/maniramezan/SwiftTestCommons", .upToNextMinor(from: "0.5.0")),
 ],
 targets: [
     .testTarget(
@@ -32,7 +40,7 @@ targets: [
 
 Use the latest [release](https://github.com/maniramezan/SwiftTestCommons/releases). Before 1.0, a minor
 release can contain breaking changes, so pin with `.upToNextMinor(from:)` rather than `from:`.
-Tags are bare SemVer (`0.3.0`), never `v0.3.0`.
+Tags are bare SemVer (`0.5.0`), never `v0.5.0`.
 
 ## Reading order and frame geometry
 
@@ -55,8 +63,12 @@ In a UI test, pass `rowTolerance:` to use the same tolerance as the geometry hel
 XCTAssertReadingOrder(first: dayOne.frame, second: dayTwo.frame, direction: .rightToLeft, "Persian")
 ```
 
-`FrameGeometry` checks containment, overlap, horizontal gaps, and horizontal alignment
-using valid frames in one coordinate space. `ReadingOrder` uses the same validity checks.
+Check a whole row at once with `ReadingOrder.firstViolation(in:direction:rowTolerance:)`, or
+`XCTAssertReadingOrder(_:direction:)` in a UI test, which names the first offending index.
+
+`FrameGeometry` checks containment, overlap, horizontal and vertical gaps, and horizontal and
+vertical alignment using valid frames in one coordinate space. `ReadingOrder` uses the same
+validity checks.
 
 ## Dependency spies
 
@@ -98,10 +110,12 @@ let responder = ScriptedResponder<String, Int>([.failure(TestError()), .success(
 let fetch: @Sendable (String) async throws -> Int = { try await responder.respond(to: $0) }
 ```
 
-`StubbedURLSession` answers one session's requests in process, from a handler or a list of
-`StubResponse`s, and records them with bodies. Sessions are isolated, so parallel tests can stub
-independently, on Apple platforms and Linux. Keep the stub alive while its session is in use,
-and invalidate it when the test finishes:
+`StubbedURLSession` answers one session's requests in process, from an asynchronous handler or a
+list of `StubResponse`s, and records them with bodies. Sessions are isolated, so parallel tests can
+stub independently, on Apple platforms and Linux. Await an `AsyncGate` or sleep on a `ManualClock`
+in the handler to hold a request in flight or add latency, and use `waitForRequests(_:)` to know it
+arrived. `StubResponse.json(encoding:)` encodes a model as the body. Keep the stub alive while its
+session is in use, and invalidate it when the test finishes:
 
 ```swift
 let stub = try StubbedURLSession(responses: [.json(#"{"id":1}"#), .text("busy", statusCode: 503)])
@@ -110,7 +124,8 @@ let client = APIClient(session: stub.session)
 ```
 
 `ManualClock` is a `Clock` whose sleeps resume only when a test calls `advance(by:)` or
-`advance(to:)`. Wait with `waitForSleepers(_:)` before advancing.
+`advance(to:)`. Wait with `waitForSleepers(_:)` before advancing, or drive a sleep loop with
+`advance(by:steps:)`, which waits for the sleeper before each step.
 
 `ScriptedValues` supplies deterministic sequences of dates, UUIDs, or any other sendable
 fixtures, with fail, repeat-last, and fallback exhaustion policies. Running out throws
@@ -123,7 +138,10 @@ fixtures, with fail, repeat-last, and fallback exhaustion policies. Running out 
 `waiterCount` to establish that work has suspended before opening it.
 
 `waitUntil` uses a monotonic deadline and throws `ObservationTimeout` carrying the last
-observation. Observation closures must return promptly and cooperate with cancellation.
+observation. Its closures run in the caller's isolation, so they can read main-actor state.
+Observation closures must return promptly and cooperate with cancellation. The count waits on
+`CallRecorder`, `ScriptedResponder`, `StubbedURLSession`, and `ManualClock` wake on each change
+instead of polling.
 
 ```swift
 let count = try await waitUntil(timeout: .seconds(2)) { await model.count } matching: { $0 >= 3 }
@@ -179,20 +197,28 @@ This helper does not depend on a snapshot library or choose recording/toolchain 
 ## Rendering SwiftUI views
 
 `TestCommonsUI.ViewRendering.pngData(rendering:size:scale:)` renders SwiftUI content offscreen,
-with no window or host application, at a fixed scale (default 1) so bytes match across devices:
+with no window or host application, at a fixed scale (default 1) so the pixel size does not depend
+on the device. Fonts, antialiasing, and OS versions can still change pixels, so compare references
+made on the same OS, or use `RenderComparison` with a tolerance:
 
 ```swift
 let png = ViewRendering.pngData(rendering: Text("Ready"), size: CGSize(width: 200, height: 100))
 ```
 
 `HostedView` owns a real platform window for platform-backed controls and lazy containers. It
-renders PNG bytes, waits for stable frames, and compares against a caller-supplied blank reference:
+renders PNG bytes, waits for stable frames, and compares against a caller-supplied blank reference.
+`HostedAppearance` forces dark mode, right-to-left layout, or a Dynamic Type size through platform
+traits, `init(_:fittingWidth:)` sizes the window to the content's height, and
+`withHostedView(_:size:_:)` closes the window when its closure returns:
 
 ```swift
-let hosted = HostedView(Text("Ready"), size: CGSize(width: 200, height: 100), scale: 2)
-defer { hosted.close() }
-_ = hosted.waitForStableRender(timeout: .seconds(2))
-let png = hosted.renderPNG()
+let png = HostedView.withHostedView(
+    Text("Ready"), size: CGSize(width: 200, height: 100), scale: 2,
+    appearance: HostedAppearance(colorScheme: .dark, layoutDirection: .rightToLeft)
+) { hosted in
+    _ = hosted.waitForStableRender(timeout: .seconds(2))
+    return hosted.renderPNG()
+}
 ```
 
 On iOS, hosted rendering needs a test target with a host app; in hostless package tests it
@@ -201,7 +227,8 @@ Serialize suites that pump the main run loop.
 
 ## UI tests
 
-`TestCommonsXCUI` waits for existence, enabled state, hittability, absence, labels, and values.
+`TestCommonsXCUI` waits for existence, enabled state, hittability, absence, selection, focus,
+labels, values, and query counts.
 Call them from the main actor and pass your test's timeout:
 
 ```swift
@@ -215,16 +242,24 @@ match the requested state, within one timeout budget. Label waits observe labels
 waits observe values. Qualify the helper with `TestCommonsXCUI` when a test target still
 has a local helper with the same name.
 
-`container.scrollUpUntilHittable(child, maxAttempts:)` and `scrollDownUntilHittable`
-perform bounded swipes and return whether the child exists and is hittable. They check
-after the final swipe and make no swipes for nonpositive budgets. Assert the returned
-flag when revealing the child is required for the next interaction.
+`container.scrollUpUntilHittable(child, maxAttempts:)`, `scrollDownUntilHittable`,
+`scrollLeftUntilHittable`, and `scrollRightUntilHittable` perform bounded swipes and return
+whether the child exists and is hittable. They check after the final swipe and make no swipes
+for nonpositive budgets. Fast swipes fling, so pass `velocity: .slow` for small targets.
+Assert the returned flag when revealing the child is required for the next interaction.
+
+`scrollVerticallyUntilHittable(_:maxAttempts:in:)` and `scrollHorizontallyUntilHittable` use
+short drags inside the scroll container that owns the child, resolved from one accessibility
+snapshot per attempt. They drag toward a target whose frame is known, and reverse when content
+stops moving at the end of a lazy list. Pass `in: app` when the app was launched by bundle
+identifier.
 
 `attachDiagnostics` captures a screenshot and accessibility hierarchy with caller-chosen
-attachment lifetime. `configureLocale` replaces prior Apple language/locale arguments while
-preserving app flags. `uniqueHittableElement` reports ambiguous visible queries. `replaceText`
-supports plain fields exposing their actual string contents, an explicit trailing caret
-coordinate, and final value verification. Secure or placeholder-only fields need a
+attachment lifetime. `configureLocale`, `configureLayoutDirection`, and
+`configureContentSizeCategory` replace earlier launch arguments of the same kind while preserving
+app flags. `uniqueHittableElement` reports ambiguous visible queries. `replaceText` supports plain
+fields exposing their actual string contents, treats a placeholder value as empty, deletes per
+Unicode scalar so joined scripts clear fully, and verifies the final value. Secure fields need a
 caller-owned interaction strategy.
 
 ## Related packages
@@ -242,16 +277,34 @@ platform requirements. It uses the sibling UserDefaultMacro checkout by default;
 swift test --package-path Integrations/ConsumerTests
 ```
 
+`Integrations/UITestHost` is a small iOS app whose UI tests exercise every `TestCommonsXCUI`
+helper against real SwiftUI screens, including lazy lists, a split layout, a carousel, delayed
+state, placeholder fields, and forced right-to-left layout. CI runs it on two simulators. The
+project is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+and checked in, so running it needs only Xcode:
+
+```sh
+xcodebuild test -project Integrations/UITestHost/UITestHost.xcodeproj -scheme UITestHost \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -parallel-testing-enabled YES -parallel-testing-worker-count 2
+```
+
 ## Documentation
 
-Each product has a DocC catalog with API references and usage guides:
+Each product has a DocC catalog with API references and usage guides, hosted on the Swift
+Package Index:
 
-- [TestCommons](Sources/TestCommons/TestCommons.docc/TestCommons.md): geometry, dependency spies,
-  test doubles, async observation, isolated storage, and snapshot reference resolution.
-- [TestCommonsUI](Sources/TestCommonsUI/TestCommonsUI.docc/TestCommonsUI.md): hosted rendering and
-  frame observation.
-- [TestCommonsXCUI](Sources/TestCommonsXCUI/TestCommonsXCUI.docc/TestCommonsXCUI.md): element waits,
-  bounded scrolling, layout assertions, and adapters that preserve failure locations.
+- [TestCommons](https://swiftpackageindex.com/maniramezan/SwiftTestCommons/documentation/testcommons):
+  geometry, dependency spies, test doubles, async observation, fixtures, isolated storage, and
+  snapshot reference resolution.
+- [TestCommonsUI](https://swiftpackageindex.com/maniramezan/SwiftTestCommons/documentation/testcommonsui):
+  offscreen and hosted rendering, appearance overrides, pixel comparison, and frame observation.
+- [TestCommonsXCUI](https://swiftpackageindex.com/maniramezan/SwiftTestCommons/documentation/testcommonsxcui):
+  element waits, bounded scrolling, launch configuration, layout assertions, and adapters that
+  preserve failure locations.
+
+The catalogs live under `Sources/<Product>/<Product>.docc` for local editing.
 
 With Xcode selected and its iOS Simulator SDK installed, build and validate all archives:
 
@@ -284,7 +337,7 @@ Run these before opening a pull request (CI runs the same checks):
 swift build
 swift test --enable-code-coverage
 python3 Scripts/check-coverage.py --diff-base origin/main
-swift format lint --strict --recursive Package.swift Sources Tests
+swift format lint --strict --recursive Package.swift Sources Tests Integrations
 python3 Scripts/build-documentation.py
 ```
 
@@ -292,7 +345,8 @@ python3 Scripts/build-documentation.py
 - At least 90% of executable lines changed since the merge base must be covered. In GitHub
   Actions, each uncovered changed line is annotated on the pull request.
 - `TestCommonsXCUI` is exempt from the changed-line check because its `XCUIElement` waits need a
-  UI-test host. Keep its floor rising by moving pure logic into internal functions with unit tests.
+  UI-test host; `Integrations/UITestHost` covers them on a simulator instead. Keep its floor
+  rising by moving pure logic into internal functions with unit tests.
 
 Conventional Commits drive automated tagging and GitHub Releases (see `.github/workflows/release.yml`).
 There is no `CHANGELOG.md`; release notes live on the GitHub Release. See [AGENTS.md](AGENTS.md)
