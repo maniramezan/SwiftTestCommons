@@ -2,7 +2,7 @@
 
 - Make changes on a feature branch and merge through a pull request. Never push directly to `main`, including force pushes or deletions.
 - Enable the repository push guard in each checkout with `git config --local core.hooksPath .githooks`.
-- Swift 6 language mode, swift-tools 6.2, minimum iOS 18 / macOS 15.
+- Swift 6 language mode, swift-tools 6.2, minimum iOS 18 / macOS 15 / tvOS 18 / visionOS 2 / watchOS 11.
 - `TestCommons` must stay free of XCTest, Swift Testing, and SwiftUI imports so other tools can ship it.
   Anything that imports a testing framework belongs in a separate product.
 - Helpers are generic: no app, calendar, or design-system identifiers. Pass app-specific details in as parameters.
